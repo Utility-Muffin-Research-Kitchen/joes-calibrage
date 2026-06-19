@@ -48,6 +48,7 @@ package-mlp1: mlp1
 	@mkdir -p "$(MLP1_PACKAGE)/bin"
 	@cp launch.sh pak.json "$(MLP1_PACKAGE)/"
 	@if [ -f LICENSE ]; then cp LICENSE "$(MLP1_PACKAGE)/"; fi
+	@if [ -d res ]; then cp -R res "$(MLP1_PACKAGE)/"; fi
 	@cp "$(MLP1_BIN)" "$(MLP1_PACKAGE)/bin/$(APP_NAME)"
 	@echo "=== Packaged: $(MLP1_PACKAGE) ==="
 
