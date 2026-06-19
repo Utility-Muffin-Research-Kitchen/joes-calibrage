@@ -1,14 +1,8 @@
 {
   "name": "Joe's Calibrage",
-  "version": "v0.1.0",
-  "type": "TOOL",
-  "description": "Calibrate the analog stick on the Miniloong Pocket 1 and persist a calibration profile for Leaf.",
+  "platform": "mlp1",
+  "pak_version": "0.1.0",
+  "min_jawaka_version": "0.0.1",
   "author": "Helaas, UMRK",
-  "repo_url": "https://github.com/Utility-Muffin-Research-Kitchen/joes-calibrage",
-  "changelog": {
-    "v0.1.0": "MLP1/Leaf adaptation: Catastrophe UI, evdev capture, JSON calibration profile."
-  },
-  "platforms": [
-    "mlp1"
-  ]
+  "repo_url": "https://github.com/Utility-Muffin-Research-Kitchen/joes-calibrage"
 }
