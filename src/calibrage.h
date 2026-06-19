@@ -129,6 +129,7 @@ int jc_config_format(const jc_config *cfg, char *buf, size_t buf_size);
 bool jc_config_valid(const jc_config *cfg);
 int jc_config_load_pair(jc_config_pair *pair, char *err, size_t err_size);
 int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t err_size);
+int jc_profile_load_mlp1(jc_config *out);   /* read back the MLP1 JSON profile */
 int jc_config_restore_backup(char *err, size_t err_size);
 int jc_config_trigger_reload(char *err, size_t err_size);
 int jc_config_apply_reload(char *err, size_t err_size);

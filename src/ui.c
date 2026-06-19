@@ -167,18 +167,35 @@ static float norm_sdl_axis(Sint16 v)
     return (float)v / 32767.0f;
 }
 
-static bool read_sdl_sticks(SDL_Joystick *joy, float out[4])
+static bool read_sdl_sticks(SDL_Joystick *joy, float out[4], const jc_config *cal)
 {
     if (!joy)
         return false;
     SDL_JoystickUpdate();
     int axes = SDL_JoystickNumAxes(joy);
-    if (axes < 5)
+    bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
+    /* The MLP1 has one analog stick (2 axes); dual-stick devices expose the
+       right stick on axes 3/4. */
+    if (axes < (dual ? 5 : 2))
         return false;
-    out[0] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 0));
-    out[1] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 1));
-    out[2] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 3));
-    out[3] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 4));
+    int raw_x = SDL_JoystickGetAxis(joy, 0);
+    int raw_y = SDL_JoystickGetAxis(joy, 1);
+    if (cal) {
+        /* Preview the calibrated result: map the raw stick through the saved
+           profile so the dot reaches the edge at full physical throw. */
+        out[0] = jc_config_normalize_axis(raw_x, cal->x_min, cal->x_zero, cal->x_max);
+        out[1] = jc_config_normalize_axis(raw_y, cal->y_min, cal->y_zero, cal->y_max);
+    } else {
+        out[0] = norm_sdl_axis((Sint16)raw_x);
+        out[1] = norm_sdl_axis((Sint16)raw_y);
+    }
+    if (dual) {
+        out[2] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 3));
+        out[3] = norm_sdl_axis(SDL_JoystickGetAxis(joy, 4));
+    } else {
+        out[2] = 0.0f;
+        out[3] = 0.0f;
+    }
     return true;
 }
 
@@ -231,6 +248,13 @@ static void show_test_screen(void)
 {
     SDL_Joystick *joy = open_joystick();
 
+    /* On the single-stick MLP1, preview the calibrated stick (what games see)
+       by mapping the live reading through the saved profile. Falls back to the
+       raw view if no profile is saved yet. */
+    jc_config cal_cfg;
+    bool have_cal = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current()) &&
+                    jc_profile_load_mlp1(&cal_cfg) == 0;
+
     bool done = false;
     while (!done) {
         cat_input_event ev;
@@ -240,7 +264,7 @@ static void show_test_screen(void)
         }
 
         float axes[4] = {0};
-        bool have_axes = read_sdl_sticks(joy, axes);
+        bool have_axes = read_sdl_sticks(joy, axes, have_cal ? &cal_cfg : NULL);
 
         bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
 
@@ -271,7 +295,12 @@ static void show_test_screen(void)
 
         char left_detail[80];
         char right_detail[80];
-        snprintf(left_detail, sizeof(left_detail), have_axes ? "SDL axis" : "No input");
+        if (!have_axes)
+            snprintf(left_detail, sizeof(left_detail), "No input");
+        else if (have_cal)
+            snprintf(left_detail, sizeof(left_detail), "calibrated");
+        else
+            snprintf(left_detail, sizeof(left_detail), "raw (uncalibrated)");
         snprintf(right_detail, sizeof(right_detail), have_axes ? "SDL axis" : "No input");
 
         char joy_type[32] = {0};
@@ -338,7 +367,13 @@ static void show_values_screen(void)
 {
     jc_config_pair cfg;
     char err[160] = {0};
-    (void)jc_config_load_pair(&cfg, err, sizeof(err));
+    if (!JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current())) {
+        /* MLP1 stores a JSON profile, not joypad.config. */
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.have_left = (jc_profile_load_mlp1(&cfg.left) == 0);
+    } else {
+        (void)jc_config_load_pair(&cfg, err, sizeof(err));
+    }
 
     bool done = false;
     while (!done) {

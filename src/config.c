@@ -561,6 +561,67 @@ static int jc_profile_save_mlp1(const jc_config *cfg, char *err, size_t err_size
     return 0;
 }
 
+/* Minimal extractor for a top-level/nested integer field "key": <int>. The
+   profile keys we read (x_min/x_max/...) are unique substrings, so a plain
+   search is sufficient and keeps config.c free of a JSON dependency. */
+static int jc__json_int(const char *text, const char *key, int *out)
+{
+    char pat[48];
+    int n = snprintf(pat, sizeof(pat), "\"%s\":", key);
+    if (n <= 0 || (size_t)n >= sizeof(pat))
+        return -1;
+    const char *p = strstr(text, pat);
+    if (!p)
+        return -1;
+    *out = (int)strtol(p + n, NULL, 10);
+    return 0;
+}
+
+/* Read back the MLP1 JSON calibration profile into a jc_config (the "left"
+   block). Returns 0 on success, -1 if absent/invalid. */
+int jc_profile_load_mlp1(jc_config *out)
+{
+    if (!out)
+        return -1;
+
+    char dir[JC_PATH_MAX];
+    const char *userdata = getenv("USERDATA_PATH");
+    if (userdata && userdata[0]) {
+        if ((size_t)snprintf(dir, sizeof(dir), "%s/input", userdata) >= sizeof(dir))
+            return -1;
+    } else {
+        snprintf(dir, sizeof(dir), "%s", jc_platform_current()->sd_userdata_root);
+    }
+    char active[JC_PATH_MAX];
+    if (join_path(active, sizeof(active), dir, "loong-gamepad-calibration.json") != 0)
+        return -1;
+
+    FILE *f = fopen(active, "rb");
+    if (!f)
+        return -1;
+    char buf[4096];
+    size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[got] = '\0';
+
+    jc_config cfg = {0};
+    if (jc__json_int(buf, "x_min", &cfg.x_min) != 0 ||
+        jc__json_int(buf, "x_max", &cfg.x_max) != 0 ||
+        jc__json_int(buf, "y_min", &cfg.y_min) != 0 ||
+        jc__json_int(buf, "y_max", &cfg.y_max) != 0)
+        return -1;
+    if (jc__json_int(buf, "x_zero", &cfg.x_zero) != 0)
+        cfg.x_zero = 0;
+    if (jc__json_int(buf, "y_zero", &cfg.y_zero) != 0)
+        cfg.y_zero = 0;
+    jc__json_int(buf, "center_noise", &cfg.center_noise);
+
+    if (!jc_config_valid(&cfg))
+        return -1;
+    *out = cfg;
+    return 0;
+}
+
 int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t err_size)
 {
     if (!jc_config_valid(cfg)) {

@@ -629,6 +629,17 @@ static void test_mlp1_profile_save_and_backup(void)
     CHECK(strstr(buf, "\"normalized_abs_max\": 32767") != NULL);
     CHECK(strstr(buf, "\"platform\": \"mlp1\"") != NULL);
 
+    /* Read it back. */
+    jc_config loaded = {0};
+    CHECK(jc_profile_load_mlp1(&loaded) == 0);
+    CHECK(loaded.x_min == -21000);
+    CHECK(loaded.x_max == 23000);
+    CHECK(loaded.y_min == -20000);
+    CHECK(loaded.y_max == 22000);
+    CHECK(loaded.x_zero == 0);
+    CHECK(loaded.y_zero == -1000);
+    CHECK(loaded.center_noise == 300);
+
     /* Second save: .first.bak keeps the original, active is updated. */
     jc_config cfg2 = cfg;
     cfg2.x_min = -19000;
