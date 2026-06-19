@@ -12,3 +12,6 @@ mock_sdcard/
 
 # Logs
 *.log
+
+# Cross-built binary artifact
+ports/*/pak/bin/

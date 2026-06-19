@@ -1,7 +1,7 @@
-#define AP_IMPLEMENTATION
-#include "apostrophe.h"
-#define AP_WIDGETS_IMPLEMENTATION
-#include "apostrophe_widgets.h"
+#define CAT_IMPLEMENTATION
+#include "catastrophe.h"
+#define CAT_WIDGETS_IMPLEMENTATION
+#include "catastrophe_widgets.h"
 
 #include <stdio.h>
 
@@ -14,22 +14,22 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
-    ap_config cfg = {0};
+    cat_config cfg = {0};
     cfg.window_title = "Joe's Calibrage";
-    cfg.font_path = AP_PLATFORM_IS_DEVICE ? NULL
-                                          : "third_party/apostrophe/res/font.ttf";
-    cfg.log_path = ap_resolve_log_path("joes-calibrage");
-    cfg.is_nextui = AP_PLATFORM_IS_DEVICE;
-    cfg.cpu_speed = AP_CPU_SPEED_MENU;
+    /* On device the font comes from the Leaf appearance snapshot (CAT_FONT_PATH);
+       NULL lets Catastrophe resolve it. */
+    cfg.font_path = NULL;
+    cfg.log_path = cat_resolve_log_path("joes-calibrage");
+    cfg.cpu_speed = CAT_CPU_SPEED_MENU;
 
-    if (ap_init(&cfg) != AP_OK) {
-        fprintf(stderr, "Failed to initialise Apostrophe: %s\n", ap_get_error());
+    if (cat_init(&cfg) != CAT_OK) {
+        fprintf(stderr, "Failed to initialise Catastrophe: %s\n", cat_get_error());
         return 1;
     }
 
-    ap_log("startup: platform=%s raw_device=%s", AP_PLATFORM_NAME,
-           jc_raw_device_path());
+    cat_log("startup: platform=%s raw_device=%s", CAT_PLATFORM_NAME,
+            jc_raw_device_path());
     jc_ui_run();
-    ap_quit();
+    cat_quit();
     return 0;
 }

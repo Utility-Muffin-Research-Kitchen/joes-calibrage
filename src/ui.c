@@ -1,5 +1,5 @@
-#include "apostrophe.h"
-#include "apostrophe_widgets.h"
+#include "catastrophe.h"
+#include "catastrophe_widgets.h"
 
 #include "calibrage.h"
 
@@ -21,17 +21,17 @@ static int imin(int a, int b)
 
 static int ui_gap(int logical_px)
 {
-    return imax(1, ap_scale(logical_px));
+    return imax(1, cat_scale(logical_px));
 }
 
 static int ui_header_margin(void)
 {
-    return imax(ap_scale(48), 30);
+    return imax(cat_scale(48), 30);
 }
 
 static SDL_Rect ui_content_rect(bool has_footer)
 {
-    SDL_Rect rect = ap_get_content_rect(true, has_footer, false);
+    SDL_Rect rect = cat_get_content_rect(true, has_footer, false);
     int margin = ui_header_margin();
     rect.x += margin;
     rect.w -= margin * 2;
@@ -49,8 +49,9 @@ static int apply_runtime_reload(char *err, size_t err_size)
 {
     if (jc_config_apply_reload(err, err_size) != 0)
         return -1;
-    if (jc_platform_current()->id == JC_PLATFORM_TG5040)
-        ap_refresh_input();
+    /* (Upstream re-scanned input here after restarting trimui_inputd on TG5040;
+       MLP1 has no input-daemon restart, and Catastrophe lazily re-inits input on
+       the next poll, so nothing to do.) */
     return 0;
 }
 
@@ -72,31 +73,31 @@ typedef enum {
 static void show_message(const char *message, bool error)
 {
     (void)error;
-    ap_footer_item footer[] = {
-        { .button = AP_BTN_A, .label = "OK", .is_confirm = true },
+    cat_footer_item footer[] = {
+        { .button = CAT_BTN_A, .label = "OK", .is_confirm = true },
     };
-    ap_message_opts opts = {
+    cat_message_opts opts = {
         .message = message,
         .footer = footer,
         .footer_count = 1,
     };
-    ap_confirm_result result = {0};
-    (void)ap_confirmation(&opts, &result);
+    cat_confirm_result result = {0};
+    (void)cat_confirmation(&opts, &result);
 }
 
 static bool show_confirm(const char *message, const char *confirm_label)
 {
-    ap_footer_item footer[] = {
-        { .button = AP_BTN_B, .label = "Cancel" },
-        { .button = AP_BTN_A, .label = confirm_label, .is_confirm = true },
+    cat_footer_item footer[] = {
+        { .button = CAT_BTN_B, .label = "Cancel" },
+        { .button = CAT_BTN_A, .label = confirm_label, .is_confirm = true },
     };
-    ap_message_opts opts = {
+    cat_message_opts opts = {
         .message = message,
         .footer = footer,
         .footer_count = 2,
     };
-    ap_confirm_result result = {0};
-    return ap_confirmation(&opts, &result) == AP_OK && result.confirmed;
+    cat_confirm_result result = {0};
+    return cat_confirmation(&opts, &result) == CAT_OK && result.confirmed;
 }
 
 static ui_action show_main_menu(void)
@@ -106,18 +107,18 @@ static ui_action show_main_menu(void)
     /* Single-stick platforms (MLP1) drop the right-stick entry and label the
        lone calibration "Calibrate" rather than "Calibrate Left". A parallel map
        keeps the selected index pointing at the right action. */
-    ap_list_item items_dual[] = {
-        AP_LIST_ITEM("Test Sticks", NULL),
-        AP_LIST_ITEM("Calibrate Left", NULL),
-        AP_LIST_ITEM("Calibrate Right", NULL),
-        AP_LIST_ITEM("View Values", NULL),
-        AP_LIST_ITEM("Restore Backup", NULL),
+    cat_list_item items_dual[] = {
+        CAT_LIST_ITEM("Test Sticks", NULL),
+        CAT_LIST_ITEM("Calibrate Left", NULL),
+        CAT_LIST_ITEM("Calibrate Right", NULL),
+        CAT_LIST_ITEM("View Values", NULL),
+        CAT_LIST_ITEM("Restore Backup", NULL),
     };
-    ap_list_item items_single[] = {
-        AP_LIST_ITEM("Test Stick", NULL),
-        AP_LIST_ITEM("Calibrate", NULL),
-        AP_LIST_ITEM("View Values", NULL),
-        AP_LIST_ITEM("Restore Backup", NULL),
+    cat_list_item items_single[] = {
+        CAT_LIST_ITEM("Test Stick", NULL),
+        CAT_LIST_ITEM("Calibrate", NULL),
+        CAT_LIST_ITEM("View Values", NULL),
+        CAT_LIST_ITEM("Restore Backup", NULL),
     };
     static const ui_action map_dual[] = {
         UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_CAL_RIGHT,
@@ -127,20 +128,20 @@ static ui_action show_main_menu(void)
         UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_VALUES, UI_ACTION_RESTORE,
     };
 
-    ap_list_item *items = dual ? items_dual : items_single;
+    cat_list_item *items = dual ? items_dual : items_single;
     int count = dual ? 5 : 4;
     const ui_action *map = dual ? map_dual : map_single;
 
-    ap_footer_item footer[] = {
-        { .button = AP_BTN_B, .label = "Quit" },
-        { .button = AP_BTN_A, .label = "Select", .is_confirm = true },
+    cat_footer_item footer[] = {
+        { .button = CAT_BTN_B, .label = "Quit" },
+        { .button = CAT_BTN_A, .label = "Select", .is_confirm = true },
     };
-    ap_list_opts opts = ap_list_default_opts("Joe's Calibrage", items, count);
+    cat_list_opts opts = cat_list_default_opts("Joe's Calibrage", items, count);
     opts.footer = footer;
     opts.footer_count = 2;
 
-    ap_list_result result = {0};
-    if (ap_list(&opts, &result) != AP_OK)
+    cat_list_result result = {0};
+    if (cat_list(&opts, &result) != CAT_OK)
         return UI_ACTION_QUIT;
     if (result.selected_index < 0 || result.selected_index >= count)
         return UI_ACTION_QUIT;
@@ -181,9 +182,9 @@ static bool read_sdl_sticks(SDL_Joystick *joy, float out[4])
     return true;
 }
 
-static void draw_line(int x1, int y1, int x2, int y2, ap_color c)
+static void draw_line(int x1, int y1, int x2, int y2, cat_draw_color c)
 {
-    SDL_Renderer *r = ap_get_renderer();
+    SDL_Renderer *r = cat_get_renderer();
     SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
     SDL_RenderDrawLine(r, x1, y1, x2, y2);
 }
@@ -202,27 +203,27 @@ static void draw_stick_widget(int cx, int cy, int radius, float x, float y,
                               const char *label, const char *detail,
                               int text_x, int text_w)
 {
-    ap_theme *t = ap_get_theme();
-    ap_color ring = t->hint;
-    ap_color dot = t->highlight;
-    ap_color cross = t->accent;
+    cat_theme *t = cat_get_theme();
+    cat_draw_color ring = t->hint;
+    cat_draw_color dot = t->highlight;
+    cat_draw_color cross = t->accent;
     clamp_stick_vector(&x, &y);
-    ap_draw_circle(cx, cy, radius, (ap_color){ ring.r, ring.g, ring.b, 55 });
+    cat_draw_circle(cx, cy, radius, (cat_draw_color){ ring.r, ring.g, ring.b, 55 });
     draw_line(cx - radius, cy, cx + radius, cy, cross);
     draw_line(cx, cy - radius, cx, cy + radius, cross);
-    int dx = (int)(x * (float)(radius - ap_scale(8)));
-    int dy = (int)(y * (float)(radius - ap_scale(8)));
-    ap_draw_circle(cx + dx, cy + dy, ap_scale(7), dot);
+    int dx = (int)(x * (float)(radius - cat_scale(8)));
+    int dy = (int)(y * (float)(radius - cat_scale(8)));
+    cat_draw_circle(cx + dx, cy + dy, cat_scale(7), dot);
 
-    TTF_Font *label_font = ap_get_font(AP_FONT_TINY);
-    TTF_Font *detail_font = ap_get_font(AP_FONT_MICRO);
+    TTF_Font *label_font = cat_get_font(CAT_FONT_TINY);
+    TTF_Font *detail_font = cat_get_font(CAT_FONT_MICRO);
     int label_y = cy + radius + ui_gap(6);
     int detail_y = label_y + font_line_h(label_font);
-    int label_w = ap_measure_text_ellipsized(label_font, label, text_w);
-    int detail_w = ap_measure_text_ellipsized(detail_font, detail, text_w);
-    ap_draw_text_ellipsized(label_font, label, text_x + (text_w - label_w) / 2,
+    int label_w = cat_measure_text_ellipsized(label_font, label, text_w);
+    int detail_w = cat_measure_text_ellipsized(detail_font, detail, text_w);
+    cat_draw_text_ellipsized(label_font, label, text_x + (text_w - label_w) / 2,
                             label_y, t->text, text_w);
-    ap_draw_text_ellipsized(detail_font, detail, text_x + (text_w - detail_w) / 2,
+    cat_draw_text_ellipsized(detail_font, detail, text_x + (text_w - detail_w) / 2,
                             detail_y, t->hint, text_w);
 }
 
@@ -232,9 +233,9 @@ static void show_test_screen(void)
 
     bool done = false;
     while (!done) {
-        ap_input_event ev;
-        while (ap_poll_input(&ev)) {
-            if (ev.pressed && ev.button == AP_BTN_B)
+        cat_input_event ev;
+        while (cat_poll_input(&ev)) {
+            if (ev.pressed && ev.button == CAT_BTN_B)
                 done = true;
         }
 
@@ -243,14 +244,14 @@ static void show_test_screen(void)
 
         bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
 
-        ap_clear_screen();
-        ap_draw_screen_title(dual ? "Test Sticks" : "Test Stick", NULL);
+        cat_clear_screen();
+        cat_draw_screen_title(dual ? "Test Sticks" : "Test Stick", NULL);
 
         SDL_Rect content = ui_content_rect(true);
-        TTF_Font *status_font = ap_get_font(AP_FONT_TINY);
-        TTF_Font *label_font = ap_get_font(AP_FONT_TINY);
-        TTF_Font *detail_font = ap_get_font(AP_FONT_MICRO);
-        int footer_top = ap_get_screen_height() - ap_get_footer_height();
+        TTF_Font *status_font = cat_get_font(CAT_FONT_TINY);
+        TTF_Font *label_font = cat_get_font(CAT_FONT_TINY);
+        TTF_Font *detail_font = cat_get_font(CAT_FONT_MICRO);
+        int footer_top = cat_get_screen_height() - cat_get_footer_height();
         int status_y = content.y + ui_gap(4);
         int widget_top = status_y + font_line_h(status_font) + ui_gap(18);
         int label_h = font_line_h(label_font) + font_line_h(detail_font);
@@ -284,8 +285,8 @@ static void show_test_screen(void)
                      have_axes ? "live" : "unavailable",
                      jc_platform_id_name());
         }
-        ap_draw_text_ellipsized(status_font, status, content.x, status_y,
-                                ap_get_theme()->hint, content.w);
+        cat_draw_text_ellipsized(status_font, status, content.x, status_y,
+                                cat_get_theme()->hint, content.w);
 
         if (dual) {
             draw_stick_widget(left_cx, cy, radius, axes[0], axes[1], "Left",
@@ -299,12 +300,12 @@ static void show_test_screen(void)
                               content.x, content.w);
         }
 
-        ap_footer_item footer[] = {
-            { .button = AP_BTN_B, .label = "Back" },
+        cat_footer_item footer[] = {
+            { .button = CAT_BTN_B, .label = "Back" },
         };
-        ap_draw_footer(footer, 1);
-        ap_request_frame();
-        ap_present();
+        cat_draw_footer(footer, 1);
+        cat_request_frame();
+        cat_present();
     }
 
     if (joy)
@@ -314,23 +315,23 @@ static void show_test_screen(void)
 static void draw_config_block(const char *name, const jc_config *cfg, bool loaded,
                               int x, int y, int w)
 {
-    ap_theme *t = ap_get_theme();
-    TTF_Font *section_font = ap_get_font(AP_FONT_SMALL);
-    TTF_Font *body_font = ap_get_font(AP_FONT_TINY);
+    cat_theme *t = cat_get_theme();
+    TTF_Font *section_font = cat_get_font(CAT_FONT_SMALL);
+    TTF_Font *body_font = cat_get_font(CAT_FONT_TINY);
     char line[96];
 
     snprintf(line, sizeof(line), "%s (%s)", name, loaded ? "saved" : "default");
-    ap_draw_text_ellipsized(section_font, line, x, y, t->text, w);
+    cat_draw_text_ellipsized(section_font, line, x, y, t->text, w);
     y += font_line_h(section_font);
 
     snprintf(line, sizeof(line), "X: min=%d  zero=%d  max=%d",
              cfg->x_min, cfg->x_zero, cfg->x_max);
-    ap_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
+    cat_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
     y += font_line_h(body_font);
 
     snprintf(line, sizeof(line), "Y: min=%d  zero=%d  max=%d",
              cfg->y_min, cfg->y_zero, cfg->y_max);
-    ap_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
+    cat_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
 }
 
 static void show_values_screen(void)
@@ -341,19 +342,19 @@ static void show_values_screen(void)
 
     bool done = false;
     while (!done) {
-        ap_input_event ev;
-        while (ap_poll_input(&ev)) {
-            if (ev.pressed && (ev.button == AP_BTN_A || ev.button == AP_BTN_B))
+        cat_input_event ev;
+        while (cat_poll_input(&ev)) {
+            if (ev.pressed && (ev.button == CAT_BTN_A || ev.button == CAT_BTN_B))
                 done = true;
         }
 
-        ap_clear_screen();
-        ap_draw_screen_title("Values", NULL);
+        cat_clear_screen();
+        cat_draw_screen_title("Values", NULL);
         SDL_Rect content = ui_content_rect(true);
-        ap_theme *t = ap_get_theme();
-        TTF_Font *body_font = ap_get_font(AP_FONT_TINY);
-        TTF_Font *diag_font = ap_get_font(AP_FONT_MICRO);
-        TTF_Font *section_font = ap_get_font(AP_FONT_SMALL);
+        cat_theme *t = cat_get_theme();
+        TTF_Font *body_font = cat_get_font(CAT_FONT_TINY);
+        TTF_Font *diag_font = cat_get_font(CAT_FONT_MICRO);
+        TTF_Font *section_font = cat_get_font(CAT_FONT_SMALL);
         int y = content.y + ui_gap(4);
         int block_h = font_line_h(section_font) + font_line_h(body_font) * 2;
 
@@ -372,13 +373,13 @@ static void show_values_screen(void)
         char line[JC_PATH_MAX * 2 + 64];
         snprintf(line, sizeof(line), "Platform: %s (%s)",
                  jc_platform_display_name(), jc_platform_id_name());
-        ap_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
+        cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
         snprintf(line, sizeof(line), "Runtime: %s", jc_config_runtime_userdata_root());
-        ap_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
+        cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
         snprintf(line, sizeof(line), "SD mirror: %s", jc_config_sd_userdata_root());
-        ap_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
+        cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
         if (platform_uses_split_raw()) {
             snprintf(line, sizeof(line), "Raw: L %s  R %s",
@@ -386,14 +387,14 @@ static void show_values_screen(void)
         } else {
             snprintf(line, sizeof(line), "Raw: %s", jc_raw_device_path());
         }
-        ap_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
+        cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
 
-        ap_footer_item footer[] = {
-            { .button = AP_BTN_A, .label = "OK", .is_confirm = true },
+        cat_footer_item footer[] = {
+            { .button = CAT_BTN_A, .label = "OK", .is_confirm = true },
         };
-        ap_draw_footer(footer, 1);
-        ap_request_frame();
-        ap_present();
+        cat_draw_footer(footer, 1);
+        cat_request_frame();
+        cat_present();
     }
 }
 
@@ -417,25 +418,25 @@ static void draw_calibration_screen(jc_stick stick, int step,
                                     const jc_raw_sample *raw,
                                     const char *status_message)
 {
-    ap_clear_screen();
+    cat_clear_screen();
     const char *cal_title = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current())
         ? "Calibrate"
         : (stick == JC_STICK_LEFT ? "Calibrate Left" : "Calibrate Right");
-    ap_draw_screen_title(cal_title, NULL);
+    cat_draw_screen_title(cal_title, NULL);
     SDL_Rect content = ui_content_rect(true);
-    ap_theme *t = ap_get_theme();
+    cat_theme *t = cat_get_theme();
 
     const char *instruction = step == 0
         ? "Rotate fully around the edge, then press A."
         : "Release the stick and keep it centered, then press Y.";
-    TTF_Font *instruction_font = ap_get_font(AP_FONT_TINY);
-    TTF_Font *label_font = ap_get_font(AP_FONT_TINY);
-    TTF_Font *detail_font = ap_get_font(AP_FONT_MICRO);
-    TTF_Font *stats_font = ap_get_font(AP_FONT_MICRO);
+    TTF_Font *instruction_font = cat_get_font(CAT_FONT_TINY);
+    TTF_Font *label_font = cat_get_font(CAT_FONT_TINY);
+    TTF_Font *detail_font = cat_get_font(CAT_FONT_MICRO);
+    TTF_Font *stats_font = cat_get_font(CAT_FONT_MICRO);
     int instruction_y = content.y + ui_gap(4);
-    int instruction_h = ap_draw_text_wrapped(instruction_font, instruction,
+    int instruction_h = cat_draw_text_wrapped(instruction_font, instruction,
                                              content.x, instruction_y, content.w,
-                                             t->text, AP_ALIGN_LEFT);
+                                             t->text, CAT_ALIGN_LEFT);
 
     int x = stick == JC_STICK_LEFT ? raw->left_x : raw->right_x;
     int y = stick == JC_STICK_LEFT ? raw->left_y : raw->right_y;
@@ -459,7 +460,7 @@ static void draw_calibration_screen(jc_stick stick, int step,
         transform_calibration_display_axes(&nx, &ny);
     }
 
-    int footer_top = ap_get_screen_height() - ap_get_footer_height();
+    int footer_top = cat_get_screen_height() - cat_get_footer_height();
     int stats_h = font_line_h(stats_font) * 2;
     int label_h = font_line_h(label_font) + font_line_h(detail_font);
     int widget_top = instruction_y + instruction_h + ui_gap(14);
@@ -480,10 +481,10 @@ static void draw_calibration_screen(jc_stick stick, int step,
     char stats[96];
     snprintf(stats, sizeof(stats), "range x:%d-%d y:%d-%d",
              cap->x_min, cap->x_max, cap->y_min, cap->y_max);
-    ap_draw_text_ellipsized(stats_font, stats, content.x, stats_y, t->hint, content.w);
+    cat_draw_text_ellipsized(stats_font, stats, content.x, stats_y, t->hint, content.w);
     snprintf(stats, sizeof(stats), "samples:%d  center:%d",
              cap->range_count, cap->zero_count);
-    ap_draw_text_ellipsized(stats_font, stats, content.x,
+    cat_draw_text_ellipsized(stats_font, stats, content.x,
                             stats_y + font_line_h(stats_font), t->hint, content.w);
     char auto_status[96] = {0};
     const char *display_status = status_message && status_message[0] ? status_message : NULL;
@@ -492,7 +493,7 @@ static void draw_calibration_screen(jc_stick stick, int step,
         display_status = auto_status;
     }
     if (display_status && display_status[0]) {
-        ap_draw_text_ellipsized(stats_font, display_status, content.x,
+        cat_draw_text_ellipsized(stats_font, display_status, content.x,
                                 stats_y - font_line_h(stats_font) - ui_gap(2),
                                 t->text, content.w);
     }
@@ -520,28 +521,28 @@ static unsigned raw_button_mask(int button)
     if (jc_platform_current()->raw_format == JC_RAW_FORMAT_TG5050) {
         if (tg5050_rotate_270_active()) {
             switch (button) {
-            case AP_BTN_A: return 0x00000001u;
-            case AP_BTN_B: return 0x00000002u;
-            case AP_BTN_X: return 0x00010000u;
-            case AP_BTN_Y: return 0x00020000u;
+            case CAT_BTN_A: return 0x00000001u;
+            case CAT_BTN_B: return 0x00000002u;
+            case CAT_BTN_X: return 0x00010000u;
+            case CAT_BTN_Y: return 0x00020000u;
             default: return 0;
             }
         } else {
             switch (button) {
-            case AP_BTN_A: return 0x00000100u;
-            case AP_BTN_B: return 0x00000001u;
-            case AP_BTN_X: return 0x00000200u;
-            case AP_BTN_Y: return 0x00000002u;
+            case CAT_BTN_A: return 0x00000100u;
+            case CAT_BTN_B: return 0x00000001u;
+            case CAT_BTN_X: return 0x00000200u;
+            case CAT_BTN_Y: return 0x00000002u;
             default: return 0;
             }
         }
     }
     if (jc_platform_current()->raw_format == JC_RAW_FORMAT_TG5040) {
         switch (button) {
-        case AP_BTN_A: return 0x10u;
-        case AP_BTN_B: return 0x20u;
-        case AP_BTN_X: return 0x04u;
-        case AP_BTN_Y: return 0x08u;
+        case CAT_BTN_A: return 0x10u;
+        case CAT_BTN_B: return 0x20u;
+        case CAT_BTN_X: return 0x04u;
+        case CAT_BTN_Y: return 0x08u;
         default: return 0;
         }
     }
@@ -562,20 +563,20 @@ static void handle_calibration_button(int button, int *step,
     char err[160] = {0};
     if (status_message && status_size > 0)
         status_message[0] = '\0';
-    if (button == AP_BTN_B) {
+    if (button == CAT_BTN_B) {
         *cancelled = true;
         *done = true;
-    } else if (button == AP_BTN_X) {
+    } else if (button == CAT_BTN_X) {
         jc_capture_reset(cap);
         *step = 0;
-    } else if (*step == 0 && button == AP_BTN_A) {
+    } else if (*step == 0 && button == CAT_BTN_A) {
         if (range_ready(cap)) {
             *step = 1;
         } else {
             snprintf(status_message, status_size,
                      "Move the stick farther in every direction.");
         }
-    } else if (*step == 1 && button == AP_BTN_Y) {
+    } else if (*step == 1 && button == CAT_BTN_Y) {
         jc_config cfg;
         if (jc_capture_make_config(cap, &cfg, err, sizeof(err)) != 0) {
             snprintf(final_message, final_size, "%s", err);
@@ -605,26 +606,26 @@ static void handle_raw_calibration_buttons(unsigned raw_pressed, int *step,
                                            bool *final_error,
                                            bool *saved)
 {
-    if (raw_pressed & raw_button_mask(AP_BTN_B))
-        handle_calibration_button(AP_BTN_B, step, cap, stick, done, cancelled,
+    if (raw_pressed & raw_button_mask(CAT_BTN_B))
+        handle_calibration_button(CAT_BTN_B, step, cap, stick, done, cancelled,
                                   status_message, status_size,
                                   final_message, final_size, final_error, saved);
     if (*done)
         return;
-    if (raw_pressed & raw_button_mask(AP_BTN_X))
-        handle_calibration_button(AP_BTN_X, step, cap, stick, done, cancelled,
+    if (raw_pressed & raw_button_mask(CAT_BTN_X))
+        handle_calibration_button(CAT_BTN_X, step, cap, stick, done, cancelled,
                                   status_message, status_size,
                                   final_message, final_size, final_error, saved);
     if (*done)
         return;
-    if (raw_pressed & raw_button_mask(AP_BTN_A))
-        handle_calibration_button(AP_BTN_A, step, cap, stick, done, cancelled,
+    if (raw_pressed & raw_button_mask(CAT_BTN_A))
+        handle_calibration_button(CAT_BTN_A, step, cap, stick, done, cancelled,
                                   status_message, status_size,
                                   final_message, final_size, final_error, saved);
     if (*done)
         return;
-    if (raw_pressed & raw_button_mask(AP_BTN_Y))
-        handle_calibration_button(AP_BTN_Y, step, cap, stick, done, cancelled,
+    if (raw_pressed & raw_button_mask(CAT_BTN_Y))
+        handle_calibration_button(CAT_BTN_Y, step, cap, stick, done, cancelled,
                                   status_message, status_size,
                                   final_message, final_size, final_error, saved);
 }
@@ -685,8 +686,8 @@ static void calibrate_stick(jc_stick stick)
                                            &final_error, &saved);
         }
 
-        ap_input_event ev;
-        while (ap_poll_input(&ev)) {
+        cat_input_event ev;
+        while (cat_poll_input(&ev)) {
             if (!ev.pressed)
                 continue;
             handle_calibration_button(ev.button, &step, &cap, stick,
@@ -697,22 +698,22 @@ static void calibrate_stick(jc_stick stick)
         }
 
         draw_calibration_screen(stick, step, &cap, &sample, status_message);
-        ap_footer_item footer_step0[] = {
-            { .button = AP_BTN_B, .label = "Cancel" },
-            { .button = AP_BTN_X, .label = "Reset" },
-            { .button = AP_BTN_A, .label = "Next", .is_confirm = true },
+        cat_footer_item footer_step0[] = {
+            { .button = CAT_BTN_B, .label = "Cancel" },
+            { .button = CAT_BTN_X, .label = "Reset" },
+            { .button = CAT_BTN_A, .label = "Next", .is_confirm = true },
         };
-        ap_footer_item footer_step1[] = {
-            { .button = AP_BTN_B, .label = "Cancel" },
-            { .button = AP_BTN_X, .label = "Reset" },
-            { .button = AP_BTN_Y, .label = "Save", .is_confirm = true },
+        cat_footer_item footer_step1[] = {
+            { .button = CAT_BTN_B, .label = "Cancel" },
+            { .button = CAT_BTN_X, .label = "Reset" },
+            { .button = CAT_BTN_Y, .label = "Save", .is_confirm = true },
         };
         if (step == 0)
-            ap_draw_footer(footer_step0, 3);
+            cat_draw_footer(footer_step0, 3);
         else
-            ap_draw_footer(footer_step1, 3);
-        ap_request_frame();
-        ap_present();
+            cat_draw_footer(footer_step1, 3);
+        cat_request_frame();
+        cat_present();
     }
 
     jc_raw_end_calibration();

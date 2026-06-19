@@ -2,16 +2,13 @@
   "name": "Joe's Calibrage",
   "version": "v0.1.0",
   "type": "TOOL",
-  "description": "Calibrate and persist thumbstick values for NextUI on Miyoo Flip, TrimUI Smart Pro, and TrimUI Smart Pro S.",
-  "author": "Helaas",
-  "repo_url": "https://github.com/Helaas/nextui-Joe-s-Calibrage-pak",
-  "release_filename": "Joe.s.Calibrage.pakz",
+  "description": "Calibrate the analog stick on the Miniloong Pocket 1 and persist a calibration profile for Leaf.",
+  "author": "Helaas, UMRK",
+  "repo_url": "https://github.com/Utility-Muffin-Research-Kitchen/joes-calibrage",
   "changelog": {
-    "v0.1.0": "Initial thumbstick calibration tool for my355, tg5040, and tg5050 with persistent joypad config writes."
+    "v0.1.0": "MLP1/Leaf adaptation: Catastrophe UI, evdev capture, JSON calibration profile."
   },
   "platforms": [
-    "my355",
-    "tg5040",
-    "tg5050"
+    "mlp1"
   ]
 }
