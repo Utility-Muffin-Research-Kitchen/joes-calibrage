@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
@@ -490,9 +491,12 @@ static int poll_stream(jc_raw_reader *reader, jc_raw_stream *stream, jc_raw_samp
     return got;
 }
 
-/* MLP1 reads evdev EV_ABS events (struct input_event) rather than a framed
-   serial byte stream. ABS_X/ABS_Y update the (single) left stick; everything
-   else is ignored. */
+/* MLP1 reads the evdev stick. evdev only emits EV_ABS events when the value
+   *changes*, so a stick at rest produces nothing — useless for sampling the
+   resting center. Instead we read the instantaneous absolute position with
+   EVIOCGABS, which returns the current value with no event required, so both the
+   range sweep and the resting center sample continuously. The event queue is
+   still drained each poll so the kernel buffer can't overflow. */
 static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
 {
 #if defined(__linux__)
@@ -500,33 +504,31 @@ static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
     if (stream->fd < 0)
         return -1;
 
-    int got = 0;
+    /* Drain (and discard) any queued events so the buffer stays clear. */
     struct input_event ev;
-    for (;;) {
-        ssize_t n = read(stream->fd, &ev, sizeof(ev));
-        if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                break;
-            set_reader_error(reader, "Could not read %s: %s", stream->path,
-                             strerror(errno));
-            return -1;
-        }
-        if (n != (ssize_t)sizeof(ev))
-            break;
-        if (ev.type != EV_ABS)
-            continue;
-        if (ev.code == ABS_X) {
-            reader->last.left_x = ev.value;
-            got = 1;
-        } else if (ev.code == ABS_Y) {
-            reader->last.left_y = ev.value;
-            got = 1;
-        }
+    while (read(stream->fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
+        /* value read live via EVIOCGABS below */
+    }
+
+    struct input_absinfo abs_x;
+    struct input_absinfo abs_y;
+    int got = 0;
+    if (ioctl(stream->fd, EVIOCGABS(ABS_X), &abs_x) == 0) {
+        reader->last.left_x = abs_x.value;
+        got = 1;
+    }
+    if (ioctl(stream->fd, EVIOCGABS(ABS_Y), &abs_y) == 0) {
+        reader->last.left_y = abs_y.value;
+        got = 1;
     }
     if (got) {
         reader->last.left_valid = true;
         reader->have_left = true;
         reader->last.valid = true;
+    } else {
+        set_reader_error(reader, "Could not read %s: %s", stream->path,
+                         strerror(errno));
+        return -1;
     }
     *out = reader->last;
     return got;

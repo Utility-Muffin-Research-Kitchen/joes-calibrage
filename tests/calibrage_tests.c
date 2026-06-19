@@ -572,6 +572,84 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
     CHECK(jc_config_normalize_axis(0, -22000, 0, 22000) == 0.0f);
 }
 
+static void test_center_stability(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    jc_calibration_capture cap;
+    jc_capture_reset(&cap);
+    for (int i = 0; i < 40; i++) {
+        int x = (i % 2 == 0) ? -21000 : 23000;
+        int y = (i % 2 == 0) ? -20000 : 22000;
+        jc_capture_add_range(&cap, x, y);
+    }
+    /* Center step begins while the stick is still traveling back from the edge:
+       a few far-apart transition samples, then a tight rest near (-1000, 500). */
+    int transition[] = { 23000, 17000, 11000, 5000 };
+    for (size_t i = 0; i < sizeof(transition) / sizeof(transition[0]); i++)
+        jc_capture_add_center(&cap, transition[i], transition[i]);
+    for (int i = 0; i < 30; i++)
+        jc_capture_add_center(&cap, -1000 + (i % 3) - 1, 500 + (i % 2));
+
+    jc_config cfg;
+    char err[128] = {0};
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    /* Center reflects the rest, not the transition; jitter is small. */
+    CHECK(cfg.x_zero >= -1001 && cfg.x_zero <= -999);
+    CHECK(cfg.y_zero >= 500 && cfg.y_zero <= 501);
+    CHECK(cfg.center_noise <= 30);
+}
+
+static void test_mlp1_profile_save_and_backup(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    char root_template[] = "/tmp/calibrage-mlp1-XXXXXX";
+    char *root = mkdtemp(root_template);
+    CHECK(root != NULL);
+    if (!root)
+        return;
+    setenv("USERDATA_PATH", root, 1);
+
+    jc_config cfg = { .x_min = -21000, .x_max = 23000, .y_min = -20000,
+                      .y_max = 22000, .x_zero = 0, .y_zero = -1000,
+                      .center_noise = 300 };
+    char err[160] = {0};
+    CHECK(jc_config_save_stick(JC_STICK_LEFT, &cfg, err, sizeof(err)) == 0);
+
+    char active[512];
+    snprintf(active, sizeof(active), "%s/input/loong-gamepad-calibration.json", root);
+    CHECK(file_exists(active));
+    char buf[2048] = {0};
+    read_text(active, buf, sizeof(buf));
+    CHECK(strstr(buf, "\"x_min\": -21000") != NULL);
+    CHECK(strstr(buf, "\"x_zero\": 0") != NULL);
+    CHECK(strstr(buf, "\"y_zero\": -1000") != NULL);
+    CHECK(strstr(buf, "\"center_noise\": 300") != NULL);
+    CHECK(strstr(buf, "\"normalized_abs_max\": 32767") != NULL);
+    CHECK(strstr(buf, "\"platform\": \"mlp1\"") != NULL);
+
+    /* Second save: .first.bak keeps the original, active is updated. */
+    jc_config cfg2 = cfg;
+    cfg2.x_min = -19000;
+    CHECK(jc_config_save_stick(JC_STICK_LEFT, &cfg2, err, sizeof(err)) == 0);
+
+    char first[600];
+    char prev[600];
+    snprintf(first, sizeof(first), "%s.first.bak", active);
+    snprintf(prev, sizeof(prev), "%s/input/loong-gamepad-calibration.previous.json", root);
+    CHECK(file_exists(first));
+    CHECK(file_exists(prev));
+    char fbuf[2048] = {0};
+    read_text(first, fbuf, sizeof(fbuf));
+    CHECK(strstr(fbuf, "\"x_min\": -21000") != NULL);   /* original preserved */
+    char abuf[2048] = {0};
+    read_text(active, abuf, sizeof(abuf));
+    CHECK(strstr(abuf, "\"x_min\": -19000") != NULL);   /* active updated */
+
+    unsetenv("USERDATA_PATH");
+}
+
 int main(void)
 {
     test_parse_and_format();
@@ -580,6 +658,8 @@ int main(void)
     test_raw_packet_parser();
     test_capture_math();
     test_mlp1_signed_defaults_capture_and_normalize();
+    test_center_stability();
+    test_mlp1_profile_save_and_backup();
     test_save_restore_and_reload();
     test_tg5040_save_restore_and_restart_signal();
     test_tg5050_save_restore_and_cal_update();

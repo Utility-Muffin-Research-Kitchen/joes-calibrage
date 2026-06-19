@@ -26,6 +26,10 @@ void jc_capture_reset(jc_calibration_capture *cap)
     cap->y_zero_sum = 0;
     cap->zero_count = 0;
     cap->range_count = 0;
+    cap->x_zero_min = platform->raw_max;
+    cap->x_zero_max = platform->raw_min;
+    cap->y_zero_min = platform->raw_max;
+    cap->y_zero_max = platform->raw_min;
 }
 
 void jc_capture_add_range(jc_calibration_capture *cap, int x, int y)
@@ -45,12 +49,54 @@ void jc_capture_add_range(jc_calibration_capture *cap, int x, int y)
     cap->range_count++;
 }
 
+/* Restart the center accumulator (keeps the range capture). */
+static void jc__center_reset(jc_calibration_capture *cap)
+{
+    const jc_platform_info *platform = jc_platform_current();
+    cap->x_zero_sum = 0;
+    cap->y_zero_sum = 0;
+    cap->zero_count = 0;
+    cap->x_zero_min = platform->raw_max;
+    cap->x_zero_max = platform->raw_min;
+    cap->y_zero_min = platform->raw_max;
+    cap->y_zero_max = platform->raw_min;
+}
+
 void jc_capture_add_center(jc_calibration_capture *cap, int x, int y)
 {
     if (!cap)
         return;
-    cap->x_zero_sum += jc_clamp_raw(x);
-    cap->y_zero_sum += jc_clamp_raw(y);
+    int cx = jc_clamp_raw(x);
+    int cy = jc_clamp_raw(y);
+
+    /* The center step starts the moment the user presses A, while the stick may
+       still be traveling back from the edge. Only the settled rest should count,
+       so if a sample jumps away from the running average (the stick is still
+       moving), restart accumulation from here. Once the stick is at rest, samples
+       cluster tightly and accumulate into a clean center + small jitter. */
+    if (cap->zero_count > 0) {
+        const jc_platform_info *platform = jc_platform_current();
+        int thresh = (platform->raw_max - platform->raw_min) / 16;
+        if (thresh < 8)
+            thresh = 8;
+        int mean_x = (int)(cap->x_zero_sum / cap->zero_count);
+        int mean_y = (int)(cap->y_zero_sum / cap->zero_count);
+        int dx = cx - mean_x; if (dx < 0) dx = -dx;
+        int dy = cy - mean_y; if (dy < 0) dy = -dy;
+        if (dx > thresh || dy > thresh)
+            jc__center_reset(cap);
+    }
+
+    cap->x_zero_sum += cx;
+    cap->y_zero_sum += cy;
+    if (cx < cap->x_zero_min)
+        cap->x_zero_min = cx;
+    if (cx > cap->x_zero_max)
+        cap->x_zero_max = cx;
+    if (cy < cap->y_zero_min)
+        cap->y_zero_min = cy;
+    if (cy > cap->y_zero_max)
+        cap->y_zero_max = cy;
     cap->zero_count++;
 }
 
@@ -108,6 +154,18 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
         out->y_zero = out->y_min;
     if (out->y_zero > out->y_max)
         out->y_zero = out->y_max;
+
+    /* Peak center jitter: the largest deviation of any center sample from the
+       averaged center, across both axes. Drives the runtime deadzone. */
+    int nx_lo = out->x_zero - cap->x_zero_min;
+    int nx_hi = cap->x_zero_max - out->x_zero;
+    int ny_lo = out->y_zero - cap->y_zero_min;
+    int ny_hi = cap->y_zero_max - out->y_zero;
+    int noise = nx_lo;
+    if (nx_hi > noise) noise = nx_hi;
+    if (ny_lo > noise) noise = ny_lo;
+    if (ny_hi > noise) noise = ny_hi;
+    out->center_noise = noise > 0 ? noise : 0;
 
     if (!jc_config_valid(out)) {
         set_err(err, err_size, "Calibration values are invalid.");

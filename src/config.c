@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifndef O_CLOEXEC
@@ -459,12 +460,118 @@ static int save_to_path_with_backup(const char *path, const char *data,
     return write_file_atomic(path, data, err, err_size);
 }
 
+/* Overwrite dst with src's contents (unlike copy_file_if_missing). Best-effort:
+   returns 0 on success, -1 otherwise. */
+static int copy_file_overwrite(const char *src, const char *dst)
+{
+    FILE *f = fopen(src, "rb");
+    if (!f)
+        return -1;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long sz = ftell(f);
+    if (sz < 0 || sz > (1 << 20) || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return -1; }
+    char *buf = (char *)malloc((size_t)sz + 1u);
+    if (!buf) { fclose(f); return -1; }
+    size_t got = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    if (got != (size_t)sz) { free(buf); return -1; }
+    buf[sz] = '\0';
+    int rc = write_file_atomic(dst, buf, NULL, 0);
+    free(buf);
+    return rc;
+}
+
+/* The MLP1 stick calibration persists as a JSON profile (consumed by Leaf's
+   input proxy), not the stock joypad.config. Path mirrors the proxy's reader:
+   $USERDATA_PATH/input/loong-gamepad-calibration.json. */
+static int jc_profile_save_mlp1(const jc_config *cfg, char *err, size_t err_size)
+{
+    char dir[JC_PATH_MAX];
+    const char *userdata = getenv("USERDATA_PATH");
+    if (userdata && userdata[0]) {
+        if ((size_t)snprintf(dir, sizeof(dir), "%s/input", userdata) >= sizeof(dir)) {
+            set_err(err, err_size, "Profile path too long.");
+            return -1;
+        }
+    } else {
+        snprintf(dir, sizeof(dir), "%s", jc_platform_current()->sd_userdata_root);
+    }
+    if (mkdir_p(dir) != 0) {
+        set_err(err, err_size, "Could not create %s", dir);
+        return -1;
+    }
+
+    char active[JC_PATH_MAX];
+    if (join_path(active, sizeof(active), dir, "loong-gamepad-calibration.json") != 0) {
+        set_err(err, err_size, "Profile path too long.");
+        return -1;
+    }
+
+    /* Backups: .first.bak is first-run only (never overwritten); .previous.json
+       is refreshed on every successful save. */
+    if (access(active, F_OK) == 0) {
+        char first[JC_PATH_MAX];
+        char previous[JC_PATH_MAX];
+        if ((size_t)snprintf(first, sizeof(first), "%s.first.bak", active) < sizeof(first))
+            copy_file_if_missing(active, first);
+        if (join_path(previous, sizeof(previous), dir,
+                      "loong-gamepad-calibration.previous.json") == 0)
+            copy_file_overwrite(active, previous);
+    }
+
+    int ax = cfg->x_max > -cfg->x_min ? cfg->x_max : -cfg->x_min;
+    int ay = cfg->y_max > -cfg->y_min ? cfg->y_max : -cfg->y_min;
+    int radius = ax > ay ? ax : ay;
+
+    char json[1100];
+    int n = snprintf(json, sizeof(json),
+        "{\n"
+        "  \"version\": 1,\n"
+        "  \"platform\": \"mlp1\",\n"
+        "  \"device_name\": \"Loong Gamepad\",\n"
+        "  \"source\": { \"kind\": \"evdev\", \"abs_x\": \"ABS_X\", \"abs_y\": \"ABS_Y\", "
+        "\"declared_min\": -32768, \"declared_max\": 32767 },\n"
+        "  \"left\": {\n"
+        "    \"x_min\": %d, \"x_max\": %d,\n"
+        "    \"y_min\": %d, \"y_max\": %d,\n"
+        "    \"x_zero\": %d, \"y_zero\": %d,\n"
+        "    \"center_noise\": %d,\n"
+        "    \"radius_p95\": %d, \"radius_max\": %d\n"
+        "  },\n"
+        "  \"derived\": {\n"
+        "    \"normalization_policy\": \"axis_deadzone_scale\",\n"
+        "    \"normalized_abs_min\": -32768, \"normalized_abs_max\": 32767,\n"
+        "    \"stock_range_strategy\": \"conservative_inside_measured_extent\", "
+        "\"stock_threshold\": 0.05\n"
+        "  },\n"
+        "  \"captured_at_unix\": %ld,\n"
+        "  \"app_version\": \"0.1.0\"\n"
+        "}\n",
+        cfg->x_min, cfg->x_max, cfg->y_min, cfg->y_max,
+        cfg->x_zero, cfg->y_zero, cfg->center_noise,
+        radius, radius, (long)time(NULL));
+    if (n <= 0 || (size_t)n >= sizeof(json)) {
+        set_err(err, err_size, "Profile JSON too large.");
+        return -1;
+    }
+
+    if (write_file_atomic(active, json, err, err_size) != 0)
+        return -1;
+    sync();
+    return 0;
+}
+
 int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t err_size)
 {
     if (!jc_config_valid(cfg)) {
         set_err(err, err_size, "Refusing to save invalid calibration values.");
         return -1;
     }
+
+    /* MLP1 writes a JSON calibration profile for Leaf's input proxy, not the
+       stock joypad.config files. */
+    if (jc_platform_current()->raw_format == JC_RAW_FORMAT_MLP1)
+        return jc_profile_save_mlp1(cfg, err, err_size);
 
     const char *name = (stick == JC_STICK_LEFT) ? left_name : right_name;
     char data[256];

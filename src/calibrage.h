@@ -64,6 +64,7 @@ typedef struct {
     int y_max;
     int x_zero;
     int y_zero;
+    int center_noise;   /* peak center jitter from capture (0 if unknown) */
 } jc_config;
 
 typedef struct {
@@ -94,6 +95,10 @@ typedef struct {
     long y_zero_sum;
     int zero_count;
     int range_count;
+    int x_zero_min;   /* center-sample extent, for peak-jitter (deadzone) sizing */
+    int x_zero_max;
+    int y_zero_min;
+    int y_zero_max;
 } jc_calibration_capture;
 
 typedef struct {
