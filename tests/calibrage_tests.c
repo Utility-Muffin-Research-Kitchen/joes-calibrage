@@ -509,6 +509,69 @@ static void test_tg5050_save_restore_and_cal_update(void)
     CHECK(strstr(mirror_text, "x_min=560") != NULL);
 }
 
+static void test_mlp1_signed_defaults_capture_and_normalize(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+
+    /* Single analog stick, signed 16-bit axes. */
+    CHECK(!JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current()));
+    CHECK(jc_platform_current()->raw_min == -32768);
+    CHECK(jc_platform_current()->raw_max == 32767);
+
+    jc_config cfg;
+    jc_config_default(&cfg);
+    CHECK(cfg.x_min == -22000);
+    CHECK(cfg.x_max == 22000);
+    CHECK(cfg.y_min == -22000);
+    CHECK(cfg.y_max == 22000);
+    CHECK(cfg.x_zero == 0);
+    CHECK(cfg.y_zero == 0);
+
+    /* Parse signed (negative) values. */
+    const char *text =
+        "x_min=-22410\nx_max=24067\ny_min=-21909\ny_max=23520\n"
+        "x_zero=0\ny_zero=0\n";
+    char err[128] = {0};
+    CHECK(jc_config_parse_text(text, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_min == -22410);
+    CHECK(cfg.x_max == 24067);
+    CHECK(cfg.y_max == 23520);
+
+    /* Capture math over a signed range that straddles zero. */
+    jc_calibration_capture cap;
+    jc_capture_reset(&cap);
+    for (int i = 0; i < 40; i++) {
+        int x = (i % 2 == 0) ? -21000 : 23000;
+        int y = (i % 2 == 0) ? -20000 : 22000;
+        jc_capture_add_range(&cap, x, y);
+    }
+    for (int i = 0; i < 12; i++)
+        jc_capture_add_center(&cap, (i % 3) - 1, (i % 2));
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_min == -21000);
+    CHECK(cfg.x_max == 23000);
+    CHECK(cfg.y_min == -20000);
+    CHECK(cfg.y_max == 22000);
+    CHECK(cfg.x_zero >= -1 && cfg.x_zero <= 1);
+    CHECK(cfg.y_zero >= 0 && cfg.y_zero <= 1);
+
+    /* Reject a throw narrower than the minimum acceptable span (12000). */
+    jc_capture_reset(&cap);
+    for (int i = 0; i < 30; i++) {
+        int v = (i % 2 == 0) ? -3000 : 3000;   /* span 6000 < 12000 */
+        jc_capture_add_range(&cap, v, v);
+    }
+    for (int i = 0; i < 12; i++)
+        jc_capture_add_center(&cap, 0, 0);
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) != 0);
+
+    /* Normalization maps the signed extremes to the full -1..1 range. */
+    CHECK(jc_config_normalize_axis(-32768, -22000, 0, 22000) == -1.0f);
+    CHECK(jc_config_normalize_axis(22000, -22000, 0, 22000) == 1.0f);
+    CHECK(jc_config_normalize_axis(0, -22000, 0, 22000) == 0.0f);
+}
+
 int main(void)
 {
     test_parse_and_format();
@@ -516,6 +579,7 @@ int main(void)
     test_tg5050_defaults_and_parse();
     test_raw_packet_parser();
     test_capture_math();
+    test_mlp1_signed_defaults_capture_and_normalize();
     test_save_restore_and_reload();
     test_tg5040_save_restore_and_restart_signal();
     test_tg5050_save_restore_and_cal_update();

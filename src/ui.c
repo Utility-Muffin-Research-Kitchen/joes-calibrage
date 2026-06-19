@@ -101,27 +101,50 @@ static bool show_confirm(const char *message, const char *confirm_label)
 
 static ui_action show_main_menu(void)
 {
-    ap_list_item items[] = {
+    bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
+
+    /* Single-stick platforms (MLP1) drop the right-stick entry and label the
+       lone calibration "Calibrate" rather than "Calibrate Left". A parallel map
+       keeps the selected index pointing at the right action. */
+    ap_list_item items_dual[] = {
         AP_LIST_ITEM("Test Sticks", NULL),
         AP_LIST_ITEM("Calibrate Left", NULL),
         AP_LIST_ITEM("Calibrate Right", NULL),
         AP_LIST_ITEM("View Values", NULL),
         AP_LIST_ITEM("Restore Backup", NULL),
     };
+    ap_list_item items_single[] = {
+        AP_LIST_ITEM("Test Stick", NULL),
+        AP_LIST_ITEM("Calibrate", NULL),
+        AP_LIST_ITEM("View Values", NULL),
+        AP_LIST_ITEM("Restore Backup", NULL),
+    };
+    static const ui_action map_dual[] = {
+        UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_CAL_RIGHT,
+        UI_ACTION_VALUES, UI_ACTION_RESTORE,
+    };
+    static const ui_action map_single[] = {
+        UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_VALUES, UI_ACTION_RESTORE,
+    };
+
+    ap_list_item *items = dual ? items_dual : items_single;
+    int count = dual ? 5 : 4;
+    const ui_action *map = dual ? map_dual : map_single;
+
     ap_footer_item footer[] = {
         { .button = AP_BTN_B, .label = "Quit" },
         { .button = AP_BTN_A, .label = "Select", .is_confirm = true },
     };
-    ap_list_opts opts = ap_list_default_opts("Joe's Calibrage", items, 5);
+    ap_list_opts opts = ap_list_default_opts("Joe's Calibrage", items, count);
     opts.footer = footer;
     opts.footer_count = 2;
 
     ap_list_result result = {0};
     if (ap_list(&opts, &result) != AP_OK)
         return UI_ACTION_QUIT;
-    if (result.selected_index < 0 || result.selected_index > 4)
+    if (result.selected_index < 0 || result.selected_index >= count)
         return UI_ACTION_QUIT;
-    return (ui_action)result.selected_index;
+    return map[result.selected_index];
 }
 
 static SDL_Joystick *open_joystick(void)
@@ -218,8 +241,10 @@ static void show_test_screen(void)
         float axes[4] = {0};
         bool have_axes = read_sdl_sticks(joy, axes);
 
+        bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
+
         ap_clear_screen();
-        ap_draw_screen_title("Test Sticks", NULL);
+        ap_draw_screen_title(dual ? "Test Sticks" : "Test Stick", NULL);
 
         SDL_Rect content = ui_content_rect(true);
         TTF_Font *status_font = ap_get_font(AP_FONT_TINY);
@@ -262,10 +287,17 @@ static void show_test_screen(void)
         ap_draw_text_ellipsized(status_font, status, content.x, status_y,
                                 ap_get_theme()->hint, content.w);
 
-        draw_stick_widget(left_cx, cy, radius, axes[0], axes[1], "Left", left_detail,
-                          left_x, col_w);
-        draw_stick_widget(right_cx, cy, radius, axes[2], axes[3], "Right", right_detail,
-                          right_x, col_w);
+        if (dual) {
+            draw_stick_widget(left_cx, cy, radius, axes[0], axes[1], "Left",
+                              left_detail, left_x, col_w);
+            draw_stick_widget(right_cx, cy, radius, axes[2], axes[3], "Right",
+                              right_detail, right_x, col_w);
+        } else {
+            /* Single analog stick: one widget centered on the content. */
+            draw_stick_widget(content.x + content.w / 2, cy, radius,
+                              axes[0], axes[1], "Stick", left_detail,
+                              content.x, content.w);
+        }
 
         ap_footer_item footer[] = {
             { .button = AP_BTN_B, .label = "Back" },
@@ -325,10 +357,17 @@ static void show_values_screen(void)
         int y = content.y + ui_gap(4);
         int block_h = font_line_h(section_font) + font_line_h(body_font) * 2;
 
-        draw_config_block("Left", &cfg.left, cfg.have_left, content.x, y, content.w);
+        bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
+        draw_config_block(dual ? "Left" : "Stick", &cfg.left, cfg.have_left,
+                          content.x, y, content.w);
         y += block_h + ui_gap(12);
-        draw_config_block("Right", &cfg.right, cfg.have_right, content.x, y, content.w);
-        y += block_h + ui_gap(14);
+        if (dual) {
+            draw_config_block("Right", &cfg.right, cfg.have_right,
+                              content.x, y, content.w);
+            y += block_h + ui_gap(14);
+        } else {
+            y += ui_gap(14);
+        }
 
         char line[JC_PATH_MAX * 2 + 64];
         snprintf(line, sizeof(line), "Platform: %s (%s)",
@@ -379,7 +418,10 @@ static void draw_calibration_screen(jc_stick stick, int step,
                                     const char *status_message)
 {
     ap_clear_screen();
-    ap_draw_screen_title(stick == JC_STICK_LEFT ? "Calibrate Left" : "Calibrate Right", NULL);
+    const char *cal_title = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current())
+        ? "Calibrate"
+        : (stick == JC_STICK_LEFT ? "Calibrate Left" : "Calibrate Right");
+    ap_draw_screen_title(cal_title, NULL);
     SDL_Rect content = ui_content_rect(true);
     ap_theme *t = ap_get_theme();
 

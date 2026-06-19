@@ -81,6 +81,36 @@ static const jc_platform_info platform_tg5050 = {
     .raw_format = JC_RAW_FORMAT_TG5050,
 };
 
+/* Miniloong Pocket 1 (Leaf). Single analog stick read from evdev EV_ABS, signed
+   16-bit axes. Calibration persists as a JSON profile under USERDATA_PATH/input
+   (see config.c), not the stock joypad.config files; the runtime that consumes
+   it is Jawaka's input proxy. */
+static const jc_platform_info platform_mlp1 = {
+    .id = JC_PLATFORM_MLP1,
+    .id_name = "mlp1",
+    .display_name = "Miniloong Pocket 1",
+    .raw_min = -32768,
+    .raw_max = 32767,
+    .min_range = 12000,
+    .default_x_min = -22000,
+    .default_x_max = 22000,
+    .default_y_min = -22000,
+    .default_y_max = 22000,
+    .default_x_zero = 0,
+    .default_y_zero = 0,
+    .sd_userdata_root = "/mnt/sdcard/.userdata/mlp1/input",
+    .runtime_userdata_root = "/mnt/sdcard/.userdata/mlp1/input",
+    .inputd_dir = NULL,
+    .reload_trigger_path = NULL,
+    .joy_type_path = NULL,
+    .raw_combined_device = NULL,   /* discovered by name from /proc/bus/input/devices */
+    .raw_left_device = NULL,
+    .raw_right_device = NULL,
+    .calibration_flag_path = NULL,
+    .raw_baud = 0,
+    .raw_format = JC_RAW_FORMAT_MLP1,
+};
+
 static int env_is(const char *env, const char *value)
 {
     return env && strcmp(env, value) == 0;
@@ -95,8 +125,12 @@ const jc_platform_info *jc_platform_current(void)
         return &platform_tg5040;
     if (env_is(env, "my355"))
         return &platform_my355;
+    if (env_is(env, "mlp1"))
+        return &platform_mlp1;
 
-#if defined(PLATFORM_TG5050)
+#if defined(PLATFORM_MLP1)
+    return &platform_mlp1;
+#elif defined(PLATFORM_TG5050)
     return &platform_tg5050;
 #elif defined(PLATFORM_TG5040)
     return &platform_tg5040;

@@ -14,6 +14,10 @@
 #include <termios.h>
 #include <unistd.h>
 
+#if defined(__linux__)
+#include <linux/input.h>
+#endif
+
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 0
 #endif
@@ -23,6 +27,7 @@
 #endif
 
 #define JC_MAX_PAUSED_PIDS 8
+#define JC_MLP1_INPUT_NAME "Loong Gamepad"
 
 static pid_t paused_pids[JC_MAX_PAUSED_PIDS];
 static int paused_pid_count = 0;
@@ -31,6 +36,81 @@ static bool platform_uses_split_raw(void)
 {
     jc_raw_format format = jc_platform_current()->raw_format;
     return format == JC_RAW_FORMAT_TG5040 || format == JC_RAW_FORMAT_TG5050;
+}
+
+static bool platform_uses_evdev(void)
+{
+    return jc_platform_current()->raw_format == JC_RAW_FORMAT_MLP1;
+}
+
+/* Extract the event node number from an "H: Handlers=..." value, e.g.
+   "kbd event4 dmcfreq" -> 4. Returns -1 if no eventN token is present. */
+static int evdev_handler_event_num(const char *handlers)
+{
+    const char *p = handlers;
+    while ((p = strstr(p, "event")) != NULL) {
+        const char *digits = p + 5;
+        if (*digits >= '0' && *digits <= '9')
+            return (int)strtol(digits, NULL, 10);
+        p = digits;
+    }
+    return -1;
+}
+
+/* Find the MLP1 "Loong Gamepad" evdev node by name in /proc/bus/input/devices.
+   The driver exposes two nodes: a physical one (Sysfs under /platform/) and a
+   virtual uinput one (Sysfs under /virtual/). prefer_physical picks the physical
+   node (raw calibration source); otherwise the virtual node (what apps see).
+   Falls back to the other kind if only one exists. Returns 0 on success. */
+static int jc_mlp1_find_gamepad(bool prefer_physical, char *out, size_t out_size)
+{
+    FILE *f = fopen("/proc/bus/input/devices", "r");
+    if (!f)
+        return -1;
+
+    char line[512];
+    bool name_match = false;
+    bool is_physical = false;
+    int event_num = -1;
+    int best_physical = -1;
+    int best_virtual = -1;
+
+    for (;;) {
+        char *got = fgets(line, sizeof(line), f);
+        bool end_of_block = (got == NULL) || line[0] == '\n' || line[0] == '\r';
+
+        if (end_of_block) {
+            if (name_match && event_num >= 0) {
+                if (is_physical && best_physical < 0)
+                    best_physical = event_num;
+                else if (!is_physical && best_virtual < 0)
+                    best_virtual = event_num;
+            }
+            name_match = false;
+            is_physical = false;
+            event_num = -1;
+            if (got == NULL)
+                break;
+            continue;
+        }
+
+        if (strncmp(line, "N: Name=", 8) == 0) {
+            name_match = strstr(line, "\"" JC_MLP1_INPUT_NAME "\"") != NULL;
+        } else if (strncmp(line, "S: Sysfs=", 9) == 0) {
+            is_physical = strstr(line, "/platform/") != NULL;
+        } else if (strncmp(line, "H: Handlers=", 12) == 0) {
+            event_num = evdev_handler_event_num(line + 12);
+        }
+    }
+    fclose(f);
+
+    int chosen = prefer_physical
+        ? (best_physical >= 0 ? best_physical : best_virtual)
+        : (best_virtual >= 0 ? best_virtual : best_physical);
+    if (chosen < 0)
+        return -1;
+    snprintf(out, out_size, "/dev/input/event%d", chosen);
+    return 0;
 }
 
 static bool platform_uses_trimui_inputd(void)
@@ -45,6 +125,18 @@ const char *jc_raw_device_path(void)
     if (env && env[0] != '\0')
         return env;
     const jc_platform_info *platform = jc_platform_current();
+    if (platform->raw_format == JC_RAW_FORMAT_MLP1) {
+        /* Raw calibration reads the physical node. JOES_CALIBRAGE_PHYSICAL_INPUT_DEV
+           overrides it; JOES_CALIBRAGE_INPUT_DEV names the virtual node used for
+           "what apps see" diagnostics elsewhere. */
+        const char *phys = getenv("JOES_CALIBRAGE_PHYSICAL_INPUT_DEV");
+        if (phys && phys[0] != '\0')
+            return phys;
+        static char discovered[64];
+        if (jc_mlp1_find_gamepad(true, discovered, sizeof(discovered)) == 0)
+            return discovered;
+        return NULL;
+    }
     if (platform->raw_combined_device)
         return platform->raw_combined_device;
     return jc_raw_left_device_path();
@@ -137,6 +229,10 @@ static int open_stream(jc_raw_reader *reader, int index, const char *path,
                        jc_stick stick, bool combined)
 {
     jc_raw_stream *stream = &reader->streams[index];
+    if (!path || !path[0]) {
+        set_reader_error(reader, "No input device found (is the Loong Gamepad present?)");
+        return -1;
+    }
     stream->fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
     if (stream->fd < 0) {
         set_reader_error(reader, "Could not open %s: %s", path, strerror(errno));
@@ -394,10 +490,61 @@ static int poll_stream(jc_raw_reader *reader, jc_raw_stream *stream, jc_raw_samp
     return got;
 }
 
+/* MLP1 reads evdev EV_ABS events (struct input_event) rather than a framed
+   serial byte stream. ABS_X/ABS_Y update the (single) left stick; everything
+   else is ignored. */
+static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
+{
+#if defined(__linux__)
+    jc_raw_stream *stream = &reader->streams[0];
+    if (stream->fd < 0)
+        return -1;
+
+    int got = 0;
+    struct input_event ev;
+    for (;;) {
+        ssize_t n = read(stream->fd, &ev, sizeof(ev));
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                break;
+            set_reader_error(reader, "Could not read %s: %s", stream->path,
+                             strerror(errno));
+            return -1;
+        }
+        if (n != (ssize_t)sizeof(ev))
+            break;
+        if (ev.type != EV_ABS)
+            continue;
+        if (ev.code == ABS_X) {
+            reader->last.left_x = ev.value;
+            got = 1;
+        } else if (ev.code == ABS_Y) {
+            reader->last.left_y = ev.value;
+            got = 1;
+        }
+    }
+    if (got) {
+        reader->last.left_valid = true;
+        reader->have_left = true;
+        reader->last.valid = true;
+    }
+    *out = reader->last;
+    return got;
+#else
+    (void)reader;
+    (void)out;
+    set_reader_error(reader, "evdev capture is only available on the device");
+    return -1;
+#endif
+}
+
 int jc_raw_reader_poll(jc_raw_reader *reader, jc_raw_sample *out)
 {
     if (!reader || !out || reader->stream_count <= 0)
         return -1;
+
+    if (platform_uses_evdev())
+        return poll_evdev(reader, out);
 
     int got = 0;
     for (int i = 0; i < reader->stream_count; i++) {
@@ -510,6 +657,11 @@ static void resume_trimui_inputd(void)
 int jc_raw_begin_calibration(char *err, size_t err_size)
 {
     const char *path = calibrating_flag_path();
+    if (!path || !path[0]) {
+        /* No stock input daemon to back off (e.g. MLP1: Jawaka already releases
+           the pad grab for app launches). Nothing to flag. */
+        return 0;
+    }
     char dir[JC_PATH_MAX];
     if (parent_dir(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
         if (err && err_size > 0)
@@ -530,5 +682,7 @@ int jc_raw_begin_calibration(char *err, size_t err_size)
 void jc_raw_end_calibration(void)
 {
     resume_trimui_inputd();
-    unlink(calibrating_flag_path());
+    const char *path = calibrating_flag_path();
+    if (path && path[0])
+        unlink(path);
 }

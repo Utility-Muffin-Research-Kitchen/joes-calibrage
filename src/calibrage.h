@@ -18,13 +18,18 @@ typedef enum {
     JC_PLATFORM_MY355 = 0,
     JC_PLATFORM_TG5040 = 1,
     JC_PLATFORM_TG5050 = 2,
+    JC_PLATFORM_MLP1 = 3,
 } jc_platform_id;
 
 typedef enum {
     JC_RAW_FORMAT_MY355 = 0,
     JC_RAW_FORMAT_TG5040 = 1,
     JC_RAW_FORMAT_TG5050 = 2,
+    JC_RAW_FORMAT_MLP1 = 3,   /* evdev EV_ABS (ABS_X/ABS_Y), not a serial stream */
 } jc_raw_format;
+
+/* MLP1 has a single analog stick (no right stick). */
+#define JC_PLATFORM_HAS_RIGHT_STICK(p) ((p)->id != JC_PLATFORM_MLP1)
 
 typedef struct {
     jc_platform_id id;
