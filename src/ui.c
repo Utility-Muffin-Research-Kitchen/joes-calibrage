@@ -65,6 +65,7 @@ typedef enum {
     UI_ACTION_TEST = 0,
     UI_ACTION_CAL_LEFT,
     UI_ACTION_CAL_RIGHT,
+    UI_ACTION_CENTER,
     UI_ACTION_VALUES,
     UI_ACTION_RESTORE,
     UI_ACTION_QUIT,
@@ -117,6 +118,7 @@ static ui_action show_main_menu(void)
     cat_list_item items_single[] = {
         CAT_LIST_ITEM("Test Stick", NULL),
         CAT_LIST_ITEM("Calibrate", NULL),
+        CAT_LIST_ITEM("Center Stick", NULL),
         CAT_LIST_ITEM("View Values", NULL),
         CAT_LIST_ITEM("Restore Backup", NULL),
     };
@@ -125,11 +127,12 @@ static ui_action show_main_menu(void)
         UI_ACTION_VALUES, UI_ACTION_RESTORE,
     };
     static const ui_action map_single[] = {
-        UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_VALUES, UI_ACTION_RESTORE,
+        UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_CENTER,
+        UI_ACTION_VALUES, UI_ACTION_RESTORE,
     };
 
     cat_list_item *items = dual ? items_dual : items_single;
-    int count = dual ? 5 : 4;
+    int count = 5;
     const ui_action *map = dual ? map_dual : map_single;
 
     cat_footer_item footer[] = {
@@ -779,6 +782,20 @@ static void restore_backup_flow(void)
         show_message("Backups restored.", false);
 }
 
+/* Kernel-level recenter (MLP1): re-reads the ADC center with the stick released,
+   so a drifting rest position is zeroed at the driver. */
+static void center_stick_flow(void)
+{
+    if (!show_confirm("Let go of the stick and keep it centered, then confirm.",
+                      "Recenter"))
+        return;
+    char result[160] = {0};
+    if (jc_center_recalibrate_mlp1(result, sizeof(result)) != 0)
+        show_message(result[0] ? result : "Could not recenter the stick.", true);
+    else
+        show_message(result[0] ? result : "Center reset.", false);
+}
+
 void jc_ui_run(void)
 {
     for (;;) {
@@ -791,6 +808,9 @@ void jc_ui_run(void)
             break;
         case UI_ACTION_CAL_RIGHT:
             calibrate_stick(JC_STICK_RIGHT);
+            break;
+        case UI_ACTION_CENTER:
+            center_stick_flow();
             break;
         case UI_ACTION_VALUES:
             show_values_screen();

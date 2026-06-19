@@ -622,6 +622,70 @@ int jc_profile_load_mlp1(jc_config *out)
     return 0;
 }
 
+/* Kernel-level center recalibration for MLP1: write a non-zero trigger to the
+   loong1_joypad adc_cal sysfs node, which makes the driver re-read the ADC
+   channels and adopt the current (released) stick position as center. The stock
+   center-history files are backed up first. The user must have released the
+   stick. Paths are overridable for tests. Writes a short status into *result. */
+int jc_center_recalibrate_mlp1(char *result, size_t result_size)
+{
+    const char *adc = getenv("CALIBRAGE_ADC_CAL_PATH");
+    if (!adc || !adc[0])
+        adc = "/sys/devices/platform/loong1_joypad/adc_cal";
+    const char *calx = getenv("CALIBRAGE_JOYSTICK_CAL_X");
+    if (!calx || !calx[0])
+        calx = "/oem/.joystick_cal_x";
+    const char *caly = getenv("CALIBRAGE_JOYSTICK_CAL_Y");
+    if (!caly || !caly[0])
+        caly = "/oem/.joystick_cal_y";
+
+    /* Back up the stock center-history files (first run only). */
+    char dir[JC_PATH_MAX];
+    const char *userdata = getenv("USERDATA_PATH");
+    if (userdata && userdata[0])
+        snprintf(dir, sizeof(dir), "%s/input/stock-backups", userdata);
+    else
+        snprintf(dir, sizeof(dir), "%s/stock-backups",
+                 jc_platform_current()->sd_userdata_root);
+    if (mkdir_p(dir) == 0) {
+        char bak[JC_PATH_MAX];
+        if (join_path(bak, sizeof(bak), dir, "joystick_cal_x.first.bak") == 0)
+            copy_file_if_missing(calx, bak);
+        if (join_path(bak, sizeof(bak), dir, "joystick_cal_y.first.bak") == 0)
+            copy_file_if_missing(caly, bak);
+    }
+
+    FILE *f = fopen(adc, "w");
+    if (!f) {
+        if (result && result_size > 0)
+            snprintf(result, result_size, "Could not open %s: %s", adc,
+                     strerror(errno));
+        return -1;
+    }
+    int wrote = fputs("1\n", f);
+    if (fclose(f) != 0 || wrote == EOF) {
+        if (result && result_size > 0)
+            snprintf(result, result_size, "Could not trigger recenter.");
+        return -1;
+    }
+
+    /* Best-effort readback of the live driver center. */
+    char live[160] = {0};
+    FILE *rf = fopen(adc, "r");
+    if (rf) {
+        size_t got = fread(live, 1, sizeof(live) - 1, rf);
+        live[got] = '\0';
+        fclose(rf);
+        char *nl = strchr(live, '\n');
+        if (nl)
+            *nl = '\0';
+    }
+    if (result && result_size > 0)
+        snprintf(result, result_size, "Center reset.%s%s",
+                 live[0] ? " " : "", live);
+    return 0;
+}
+
 int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t err_size)
 {
     if (!jc_config_valid(cfg)) {

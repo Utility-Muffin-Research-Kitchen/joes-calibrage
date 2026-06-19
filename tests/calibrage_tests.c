@@ -661,6 +661,50 @@ static void test_mlp1_profile_save_and_backup(void)
     unsetenv("USERDATA_PATH");
 }
 
+static void test_mlp1_center_recalibrate(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    char root_template[] = "/tmp/calibrage-adc-XXXXXX";
+    char *root = mkdtemp(root_template);
+    CHECK(root != NULL);
+    if (!root)
+        return;
+    setenv("USERDATA_PATH", root, 1);
+
+    char adc[512], calx[512], caly[512];
+    snprintf(adc, sizeof(adc), "%s/adc_cal", root);
+    snprintf(calx, sizeof(calx), "%s/cal_x", root);
+    snprintf(caly, sizeof(caly), "%s/cal_y", root);
+    write_text(adc, "adc[0]->cal = -58817\n");
+    write_text(calx, "-58817\n-58817\n");
+    write_text(caly, "-57449\n-57449\n");
+    setenv("CALIBRAGE_ADC_CAL_PATH", adc, 1);
+    setenv("CALIBRAGE_JOYSTICK_CAL_X", calx, 1);
+    setenv("CALIBRAGE_JOYSTICK_CAL_Y", caly, 1);
+
+    char result[160] = {0};
+    CHECK(jc_center_recalibrate_mlp1(result, sizeof(result)) == 0);
+
+    char buf[64] = {0};
+    read_text(adc, buf, sizeof(buf));
+    CHECK(strchr(buf, '1') != NULL);   /* trigger written */
+
+    char bx[600], by[600];
+    snprintf(bx, sizeof(bx), "%s/input/stock-backups/joystick_cal_x.first.bak", root);
+    snprintf(by, sizeof(by), "%s/input/stock-backups/joystick_cal_y.first.bak", root);
+    CHECK(file_exists(bx));
+    CHECK(file_exists(by));
+    char bxb[64] = {0};
+    read_text(bx, bxb, sizeof(bxb));
+    CHECK(strstr(bxb, "-58817") != NULL);   /* original center-history preserved */
+
+    unsetenv("USERDATA_PATH");
+    unsetenv("CALIBRAGE_ADC_CAL_PATH");
+    unsetenv("CALIBRAGE_JOYSTICK_CAL_X");
+    unsetenv("CALIBRAGE_JOYSTICK_CAL_Y");
+}
+
 int main(void)
 {
     test_parse_and_format();
@@ -671,6 +715,7 @@ int main(void)
     test_mlp1_signed_defaults_capture_and_normalize();
     test_center_stability();
     test_mlp1_profile_save_and_backup();
+    test_mlp1_center_recalibrate();
     test_save_restore_and_reload();
     test_tg5040_save_restore_and_restart_signal();
     test_tg5050_save_restore_and_cal_update();
