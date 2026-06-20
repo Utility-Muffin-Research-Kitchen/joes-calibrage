@@ -15,3 +15,6 @@ mock_sdcard/
 
 # Cross-built binary artifact
 ports/*/pak/bin/
+
+# Local icon master/export workspace (ship res/icon.png)
+Joystick Icon Export/
