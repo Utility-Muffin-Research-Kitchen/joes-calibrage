@@ -10,6 +10,17 @@ PAK_NAME := Joe's Calibrage
 BUILD_DIR := build
 MLP1_BIN := ports/mlp1/pak/bin/joes-calibrage
 MLP1_PACKAGE := $(BUILD_DIR)/mlp1/package/$(PAK_NAME).pak
+MLP1_BUILD_PROFILE ?= release
+WORKSPACE_ROOT ?= $(abspath ..)
+MLP1_FLAGS_MK ?= $(firstword $(wildcard /opt/mlp1-toolchain/umrk/mlp1-build-flags.mk $(WORKSPACE_ROOT)/mlp1-toolchain/flags/mlp1-build-flags.mk ../mlp1-toolchain/flags/mlp1-build-flags.mk))
+ifneq ($(MLP1_FLAGS_MK),)
+include $(MLP1_FLAGS_MK)
+else
+UMRK_MLP1_TARGET_SOC ?= rk3566
+UMRK_MLP1_TARGET_CPU ?= cortex-a55
+UMRK_MLP1_PROFILE_CFLAGS ?= -O2 -mcpu=cortex-a55 -mtune=cortex-a55 -ffunction-sections -fdata-sections -DNDEBUG
+UMRK_MLP1_PROFILE_LDFLAGS ?= -Wl,--gc-sections
+endif
 
 TEST_BUILD_DIR := $(BUILD_DIR)/tests
 TEST_BIN := $(TEST_BUILD_DIR)/calibrage_tests
@@ -33,7 +44,7 @@ test-native: $(TEST_BIN)
 
 # Cross-compile the aarch64 binary (Docker mlp1-toolchain).
 mlp1:
-	@./scripts/build-mlp1.sh
+	@MLP1_BUILD_PROFILE="$(MLP1_BUILD_PROFILE)" ./scripts/build-mlp1.sh
 
 package-platform:
 	@test -n "$(PLATFORM)" || { echo "usage: make package-platform PLATFORM=mlp1" >&2; exit 1; }
@@ -50,6 +61,18 @@ package-mlp1: mlp1
 	@if [ -f LICENSE ]; then cp LICENSE "$(MLP1_PACKAGE)/"; fi
 	@if [ -d res ]; then cp -R res "$(MLP1_PACKAGE)/"; fi
 	@cp "$(MLP1_BIN)" "$(MLP1_PACKAGE)/bin/$(APP_NAME)"
+	@{ \
+		printf '{\n'; \
+		printf '  "platform": "mlp1",\n'; \
+		printf '  "target_soc": "%s",\n' "$(UMRK_MLP1_TARGET_SOC)"; \
+		printf '  "target_cpu": "%s",\n' "$(UMRK_MLP1_TARGET_CPU)"; \
+		printf '  "build_profile": "%s",\n' "$(MLP1_BUILD_PROFILE)"; \
+		printf '  "cflags": "%s",\n' "$(UMRK_MLP1_PROFILE_CFLAGS)"; \
+		printf '  "ldflags": "%s",\n' "$(UMRK_MLP1_PROFILE_LDFLAGS)"; \
+		printf '  "binaries": ["bin/$(APP_NAME)"],\n'; \
+		printf '  "exceptions": []\n'; \
+		printf '}\n'; \
+	} > "$(MLP1_PACKAGE)/build-manifest.json"
 	@echo "=== Packaged: $(MLP1_PACKAGE) ==="
 
 # Desktop dev build against the sibling Catastrophe (best-effort; needs brew SDL2).

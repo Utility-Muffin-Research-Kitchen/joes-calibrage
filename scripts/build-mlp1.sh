@@ -8,5 +8,5 @@ WORKSPACE="$(cd "$APP_DIR/.." && pwd)"   # siblings: joes-calibrage, Catastrophe
 IMAGE="${MLP1_TOOLCHAIN_IMAGE:-ghcr.io/utility-muffin-research-kitchen/mlp1-toolchain:latest}"
 
 echo "=== Building Joe's Calibrage for MLP1 (workspace: $WORKSPACE) ==="
-docker run --rm -v "$WORKSPACE":/workspace -w /workspace/joes-calibrage "$IMAGE" \
+docker run --rm -e MLP1_BUILD_PROFILE="${MLP1_BUILD_PROFILE:-release}" -v "$WORKSPACE":/workspace -w /workspace/joes-calibrage "$IMAGE" \
 	make -C ports/mlp1
