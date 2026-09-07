@@ -51,6 +51,30 @@ The MLP1 has a single analog stick, so the UI is single-stick.
 
 Footer: **A** select / save, **B** back / cancel.
 
+## Localization
+
+The UI and engine messages are fully translated to Simplified Chinese, using
+the same i18n shape as [Thing-File](../../Thing-File): English strings are the
+keys (`T("Calibrate")` in the sources), `i18n/zh_CN.po` is the single source of
+truth, and `make i18n-build` converts it to the TSV table the app loads
+(`build/i18n/zh_CN.tsv`, staged into the pak's `res/i18n/` by
+`make package-mlp1`).
+
+At startup the language is resolved from `$UMRK_LANGUAGE`, falling back to
+`$JAWAKA_LANGUAGE` (both exported by the Leaf launcher's `env.sh`); missing or
+unknown means English. The first valid table wins, searched in this order:
+
+1. `$USERDATA_PATH/joes-calibrage/i18n/<lang>.tsv` — live reviewer override
+2. `$JOES_CALIBRAGE_I18N_DIR/<lang>.tsv` — native dev build dir
+3. `<pak>/res/i18n/<lang>.tsv` — the packaged table (`launch.sh` runs with the
+   pak directory as the working directory)
+
+Maintenance: run `make i18n-pot` after any UI-string change (it rewrites
+`i18n/joes-calibrage.pot` from the `T()` calls), keep `i18n/*.po` reviewed to
+the `make i18n-check` coverage gate, then rebuild the TSVs. Chinese rendering
+relies on the Leaf appearance-snapshot font carrying CJK glyphs (the same
+shared Source Han face Thing-File uses), so no font ships in this pak.
+
 ## Building
 
 Catastrophe and Jawaka resolve as workspace siblings (the canonical UMRK layout:

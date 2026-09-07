@@ -1,0 +1,289 @@
+# Simplified Chinese for Joe's Calibrage.
+# Keyed on the English UI string, same contract as Thing-File's i18n tables.
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "%s (%s)"
+msgstr "%s（%s）"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Backup path too long."
+msgstr "备份路径过长。"
+
+msgid "Backups restored, but input restart failed."
+msgstr "备份已恢复，但输入重启失败。"
+
+msgid "Backups restored."
+msgstr "备份已恢复。"
+
+msgid "Calibrate"
+msgstr "校准"
+
+msgid "Calibrate Left"
+msgstr "校准左摇杆"
+
+msgid "Calibrate Right"
+msgstr "校准右摇杆"
+
+msgid "Calibration cancelled."
+msgstr "已取消校准。"
+
+msgid "Calibration path too long."
+msgstr "校准路径过长。"
+
+msgid "Calibration saved, but input restart failed."
+msgstr "校准已保存，但输入重启失败。"
+
+msgid "Calibration saved."
+msgstr "校准已保存。"
+
+msgid "Calibration values are invalid."
+msgstr "校准值无效。"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Center Stick"
+msgstr "摇杆居中"
+
+msgid "Center reset."
+msgstr "已重置摇杆中心。"
+
+msgid "Center reset.%s%s"
+msgstr "已重置摇杆中心。%s%s"
+
+msgid "Config is missing required fields."
+msgstr "配置缺少必需字段。"
+
+msgid "Config path too long."
+msgstr "配置路径过长。"
+
+msgid "Config values are out of range."
+msgstr "配置值超出范围。"
+
+msgid "Could not close %s: %s"
+msgstr "无法关闭 %s：%s"
+
+msgid "Could not create %s"
+msgstr "无法创建 %s"
+
+msgid "Could not create %s: %s"
+msgstr "无法创建 %s：%s"
+
+msgid "Could not create backup for %s"
+msgstr "无法为 %s 创建备份"
+
+msgid "Could not create parent directory for %s"
+msgstr "无法为 %s 创建父目录"
+
+msgid "Could not flush %s: %s"
+msgstr "无法刷新 %s：%s"
+
+msgid "Could not format calibration values."
+msgstr "无法格式化校准值。"
+
+msgid "Could not open %s: %s"
+msgstr "无法打开 %s：%s"
+
+msgid "Could not read %s: %s"
+msgstr "无法读取 %s：%s"
+
+msgid "Could not read raw stick stream."
+msgstr "无法读取原始摇杆数据流。"
+
+msgid "Could not recenter the stick."
+msgstr "无法重新居中摇杆。"
+
+msgid "Could not replace %s: %s"
+msgstr "无法替换 %s：%s"
+
+msgid "Could not restart trimui_inputd."
+msgstr "无法重启 trimui_inputd。"
+
+msgid "Could not restore backups."
+msgstr "无法恢复备份。"
+
+msgid "Could not trigger input reload: %s"
+msgstr "无法触发输入重载：%s"
+
+msgid "Could not trigger recenter."
+msgstr "无法触发重新居中。"
+
+msgid "Could not write %s: %s"
+msgstr "无法写入 %s：%s"
+
+msgid "Left"
+msgstr "左"
+
+msgid "Joe's Calibrage"
+msgstr "摇杆校准"
+
+msgid "Let go of the stick and keep it centered, then confirm."
+msgstr "松开摇杆并保持居中，然后确认。"
+
+msgid "Loaded defaults for missing calibration files."
+msgstr "校准文件缺失，已载入默认值。"
+
+msgid "Mirror path too long."
+msgstr "镜像路径过长。"
+
+msgid "Missing calibration capture."
+msgstr "缺少校准采集数据。"
+
+msgid "Missing config text."
+msgstr "缺少配置文本。"
+
+msgid "Move the stick farther in every direction."
+msgstr "请朝各个方向更大幅度地推动摇杆。"
+
+msgid "Next"
+msgstr "下一步"
+
+msgid "No calibration backups found."
+msgstr "未找到校准备份。"
+
+msgid "No input"
+msgstr "无输入"
+
+msgid "No input device found (is the Loong Gamepad present?)"
+msgstr "未找到输入设备（Loong Gamepad 是否已连接？）"
+
+msgid "Not enough center samples."
+msgstr "中心采样不足。"
+
+msgid "Not enough movement samples."
+msgstr "移动采样不足。"
+
+msgid "OK"
+msgstr "确定"
+
+msgid "Path too long: %s"
+msgstr "路径过长：%s"
+
+msgid "Platform: %s (%s)"
+msgstr "平台：%s（%s）"
+
+msgid "Profile JSON too large."
+msgstr "配置文件 JSON 过大。"
+
+msgid "Profile path too long."
+msgstr "配置文件路径过长。"
+
+msgid "Quit"
+msgstr "退出"
+
+msgid "Range captured. Press A."
+msgstr "范围已采集，按 A 继续。"
+
+msgid "Raw stick stream unavailable."
+msgstr "原始摇杆数据流不可用。"
+
+msgid "Raw: %s"
+msgstr "原始输入：%s"
+
+msgid "Raw: L %s  R %s"
+msgstr "原始输入：左 %s 右 %s"
+
+msgid "Recenter"
+msgstr "重新居中"
+
+msgid "Refusing to save invalid calibration values."
+msgstr "拒绝保存无效的校准值。"
+
+msgid "Release the stick and keep it centered, then press Y."
+msgstr "松开摇杆并保持居中，然后按 Y。"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "Restore"
+msgstr "恢复"
+
+msgid "Restore Backup"
+msgstr "恢复备份"
+
+msgid "Restore path too long."
+msgstr "恢复路径过长。"
+
+msgid "Restore the first-run backups for both sticks?"
+msgstr "要恢复两个摇杆的首次运行备份吗？"
+
+msgid "Right"
+msgstr "右"
+
+msgid "Rotate fully around the edge, then press A."
+msgstr "沿边缘完整转动摇杆，然后按 A。"
+
+msgid "Runtime: %s"
+msgstr "运行数据目录：%s"
+
+msgid "SD mirror: %s"
+msgstr "SD 镜像：%s"
+
+msgid "SDL axis"
+msgstr "SDL 轴"
+
+msgid "SDL: %s   platform: %s"
+msgstr "SDL：%s 平台：%s"
+
+msgid "SDL: %s   platform: %s   joy: %s"
+msgstr "SDL：%s 平台：%s 手柄：%s"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Select"
+msgstr "选择"
+
+msgid "Stick"
+msgstr "摇杆"
+
+msgid "Test Stick"
+msgstr "测试摇杆"
+
+msgid "Test Sticks"
+msgstr "测试摇杆"
+
+msgid "Values"
+msgstr "数值"
+
+msgid "View Values"
+msgstr "查看数值"
+
+msgid "X: min=%d  zero=%d  max=%d"
+msgstr "X：最小=%d  居中=%d  最大=%d"
+
+msgid "Y: min=%d  zero=%d  max=%d"
+msgstr "Y：最小=%d  居中=%d  最大=%d"
+
+msgid "calibrated"
+msgstr "已校准"
+
+msgid "default"
+msgstr "默认"
+
+msgid "evdev capture is only available on the device"
+msgstr "evdev 采集仅在设备上可用"
+
+msgid "live"
+msgstr "实时"
+
+msgid "range x:%d-%d y:%d-%d"
+msgstr "范围 x:%d-%d y:%d-%d"
+
+msgid "raw %d,%d"
+msgstr "原始 %d,%d"
+
+msgid "raw (uncalibrated)"
+msgstr "原始（未校准）"
+
+msgid "samples:%d  center:%d"
+msgstr "采样：%d  中心：%d"
+
+msgid "saved"
+msgstr "已保存"
+
+msgid "unavailable"
+msgstr "不可用"
