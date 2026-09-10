@@ -5,5 +5,6 @@
   "pak_version": "0.1.0",
   "min_jawaka_version": "0.0.1",
   "author": "Helaas, UMRK",
-  "repo_url": "https://github.com/Utility-Muffin-Research-Kitchen/joes-calibrage"
+  "repo_url": "https://github.com/Utility-Muffin-Research-Kitchen/joes-calibrage",
+  "description": "Analog-stick calibration for the Miniloong Pocket 1, measuring the stick's real physical range and saving a per-device profile so Leaf can normalize the stick and games see its full throw."
 }
