@@ -1,4 +1,5 @@
 #include "calibrage.h"
+#include "i18n.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -119,21 +120,21 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
                            char *err, size_t err_size)
 {
     if (!cap || !out) {
-        set_err(err, err_size, "Missing calibration capture.");
+        set_err(err, err_size, T("Missing calibration capture."));
         return -1;
     }
     if (cap->range_count < 20) {
-        set_err(err, err_size, "Not enough movement samples.");
+        set_err(err, err_size, T("Not enough movement samples."));
         return -1;
     }
     int min_range = jc_platform_current()->min_range;
     if ((cap->x_max - cap->x_min) < min_range ||
         (cap->y_max - cap->y_min) < min_range) {
-        set_err(err, err_size, "Move the stick farther in every direction.");
+        set_err(err, err_size, T("Move the stick farther in every direction."));
         return -1;
     }
     if (cap->zero_count < 8) {
-        set_err(err, err_size, "Not enough center samples.");
+        set_err(err, err_size, T("Not enough center samples."));
         return -1;
     }
 
@@ -168,7 +169,7 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
     out->center_noise = noise > 0 ? noise : 0;
 
     if (!jc_config_valid(out)) {
-        set_err(err, err_size, "Calibration values are invalid.");
+        set_err(err, err_size, T("Calibration values are invalid."));
         return -1;
     }
     return 0;

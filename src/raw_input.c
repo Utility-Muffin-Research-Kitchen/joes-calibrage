@@ -1,4 +1,5 @@
 #include "calibrage.h"
+#include "i18n.h"
 
 #include <errno.h>
 #include <ctype.h>
@@ -231,12 +232,12 @@ static int open_stream(jc_raw_reader *reader, int index, const char *path,
 {
     jc_raw_stream *stream = &reader->streams[index];
     if (!path || !path[0]) {
-        set_reader_error(reader, "No input device found (is the Loong Gamepad present?)");
+        set_reader_error(reader, T("No input device found (is the Loong Gamepad present?)"));
         return -1;
     }
     stream->fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
     if (stream->fd < 0) {
-        set_reader_error(reader, "Could not open %s: %s", path, strerror(errno));
+        set_reader_error(reader, T("Could not open %s: %s"), path, strerror(errno));
         return -1;
     }
     stream->packet_pos = 0;
@@ -472,7 +473,7 @@ static int poll_stream(jc_raw_reader *reader, jc_raw_stream *stream, jc_raw_samp
         if (n < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
                 break;
-            set_reader_error(reader, "Could not read %s: %s", stream->path,
+            set_reader_error(reader, T("Could not read %s: %s"), stream->path,
                              strerror(errno));
             return -1;
         }
@@ -526,7 +527,7 @@ static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
         reader->have_left = true;
         reader->last.valid = true;
     } else {
-        set_reader_error(reader, "Could not read %s: %s", stream->path,
+        set_reader_error(reader, T("Could not read %s: %s"), stream->path,
                          strerror(errno));
         return -1;
     }
@@ -535,7 +536,7 @@ static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
 #else
     (void)reader;
     (void)out;
-    set_reader_error(reader, "evdev capture is only available on the device");
+    set_reader_error(reader, T("evdev capture is only available on the device"));
     return -1;
 #endif
 }
@@ -667,13 +668,13 @@ int jc_raw_begin_calibration(char *err, size_t err_size)
     char dir[JC_PATH_MAX];
     if (parent_dir(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
         if (err && err_size > 0)
-            snprintf(err, err_size, "Could not create parent directory for %s", path);
+            snprintf(err, err_size, T("Could not create parent directory for %s"), path);
         return -1;
     }
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     if (fd < 0) {
         if (err && err_size > 0)
-            snprintf(err, err_size, "Could not create %s: %s", path, strerror(errno));
+            snprintf(err, err_size, T("Could not create %s: %s"), path, strerror(errno));
         return -1;
     }
     close(fd);

@@ -1,4 +1,5 @@
 #include "calibrage.h"
+#include "i18n.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -141,7 +142,7 @@ bool jc_config_valid(const jc_config *cfg)
 int jc_config_parse_text(const char *text, jc_config *out, char *err, size_t err_size)
 {
     if (!text || !out) {
-        set_err(err, err_size, "Missing config text.");
+        set_err(err, err_size, T("Missing config text."));
         return -1;
     }
 
@@ -191,12 +192,12 @@ int jc_config_parse_text(const char *text, jc_config *out, char *err, size_t err
 
     for (int i = 0; i < JC_CONFIG_FIELD_COUNT; i++) {
         if (!seen[i]) {
-            set_err(err, err_size, "Config is missing required fields.");
+            set_err(err, err_size, T("Config is missing required fields."));
             return -1;
         }
     }
     if (!jc_config_valid(&cfg)) {
-        set_err(err, err_size, "Config values are out of range.");
+        set_err(err, err_size, T("Config values are out of range."));
         return -1;
     }
     *out = cfg;
@@ -230,14 +231,14 @@ static int read_file(const char *path, char *buf, size_t buf_size,
 {
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
-        set_err(err, err_size, "Could not open %s: %s", path, strerror(errno));
+        set_err(err, err_size, T("Could not open %s: %s"), path, strerror(errno));
         return -1;
     }
     ssize_t n = read(fd, buf, buf_size - 1);
     int saved = errno;
     close(fd);
     if (n < 0) {
-        set_err(err, err_size, "Could not read %s: %s", path, strerror(saved));
+        set_err(err, err_size, T("Could not read %s: %s"), path, strerror(saved));
         return -1;
     }
     buf[n] = '\0';
@@ -327,20 +328,20 @@ static int write_file_atomic(const char *path, const char *data,
 {
     char dir[JC_PATH_MAX];
     if (parent_dir(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
-        set_err(err, err_size, "Could not create parent directory for %s", path);
+        set_err(err, err_size, T("Could not create parent directory for %s"), path);
         return -1;
     }
 
     char tmp[JC_PATH_MAX];
     int n = snprintf(tmp, sizeof(tmp), "%s.tmp.%ld", path, (long)getpid());
     if (n <= 0 || (size_t)n >= sizeof(tmp)) {
-        set_err(err, err_size, "Path too long: %s", path);
+        set_err(err, err_size, T("Path too long: %s"), path);
         return -1;
     }
 
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     if (fd < 0) {
-        set_err(err, err_size, "Could not write %s: %s", tmp, strerror(errno));
+        set_err(err, err_size, T("Could not write %s: %s"), tmp, strerror(errno));
         return -1;
     }
 
@@ -352,7 +353,7 @@ static int write_file_atomic(const char *path, const char *data,
             int saved = errno;
             close(fd);
             unlink(tmp);
-            set_err(err, err_size, "Could not write %s: %s", tmp, strerror(saved));
+            set_err(err, err_size, T("Could not write %s: %s"), tmp, strerror(saved));
             return -1;
         }
         off += (size_t)wrote;
@@ -361,19 +362,19 @@ static int write_file_atomic(const char *path, const char *data,
         int saved = errno;
         close(fd);
         unlink(tmp);
-        set_err(err, err_size, "Could not flush %s: %s", tmp, strerror(saved));
+        set_err(err, err_size, T("Could not flush %s: %s"), tmp, strerror(saved));
         return -1;
     }
     if (close(fd) != 0) {
         int saved = errno;
         unlink(tmp);
-        set_err(err, err_size, "Could not close %s: %s", tmp, strerror(saved));
+        set_err(err, err_size, T("Could not close %s: %s"), tmp, strerror(saved));
         return -1;
     }
     if (rename(tmp, path) != 0) {
         int saved = errno;
         unlink(tmp);
-        set_err(err, err_size, "Could not replace %s: %s", path, strerror(saved));
+        set_err(err, err_size, T("Could not replace %s: %s"), path, strerror(saved));
         return -1;
     }
     return 0;
@@ -385,7 +386,7 @@ static int load_one(const char *root, const char *name, jc_config *out,
     char path[JC_PATH_MAX];
     char text[512];
     if (join_path(path, sizeof(path), root, name) != 0) {
-        set_err(err, err_size, "Config path too long.");
+        set_err(err, err_size, T("Config path too long."));
         return -1;
     }
     if (read_file(path, text, sizeof(text), err, err_size) != 0)
@@ -427,7 +428,7 @@ int jc_config_load_pair(jc_config_pair *pair, char *err, size_t err_size)
     }
 
     if (!pair->have_left || !pair->have_right) {
-        set_err(err, err_size, "Loaded defaults for missing calibration files.");
+        set_err(err, err_size, T("Loaded defaults for missing calibration files."));
         return 1;
     }
     return 0;
@@ -449,11 +450,11 @@ static int save_to_path_with_backup(const char *path, const char *data,
         char backup[JC_PATH_MAX];
         int n = snprintf(backup, sizeof(backup), "%s.bak", path);
         if (n <= 0 || (size_t)n >= sizeof(backup)) {
-            set_err(err, err_size, "Backup path too long.");
+            set_err(err, err_size, T("Backup path too long."));
             return -1;
         }
         if (copy_file_if_missing(path, backup) != 0 && access(backup, F_OK) != 0) {
-            set_err(err, err_size, "Could not create backup for %s", path);
+            set_err(err, err_size, T("Could not create backup for %s"), path);
             return -1;
         }
     }
@@ -490,20 +491,20 @@ static int jc_profile_save_mlp1(const jc_config *cfg, char *err, size_t err_size
     const char *userdata = getenv("USERDATA_PATH");
     if (userdata && userdata[0]) {
         if ((size_t)snprintf(dir, sizeof(dir), "%s/input", userdata) >= sizeof(dir)) {
-            set_err(err, err_size, "Profile path too long.");
+            set_err(err, err_size, T("Profile path too long."));
             return -1;
         }
     } else {
         snprintf(dir, sizeof(dir), "%s", jc_platform_current()->sd_userdata_root);
     }
     if (mkdir_p(dir) != 0) {
-        set_err(err, err_size, "Could not create %s", dir);
+        set_err(err, err_size, T("Could not create %s"), dir);
         return -1;
     }
 
     char active[JC_PATH_MAX];
     if (join_path(active, sizeof(active), dir, "loong-gamepad-calibration.json") != 0) {
-        set_err(err, err_size, "Profile path too long.");
+        set_err(err, err_size, T("Profile path too long."));
         return -1;
     }
 
@@ -551,7 +552,7 @@ static int jc_profile_save_mlp1(const jc_config *cfg, char *err, size_t err_size
         cfg->x_zero, cfg->y_zero, cfg->center_noise,
         radius, radius, (long)time(NULL));
     if (n <= 0 || (size_t)n >= sizeof(json)) {
-        set_err(err, err_size, "Profile JSON too large.");
+        set_err(err, err_size, T("Profile JSON too large."));
         return -1;
     }
 
@@ -658,14 +659,14 @@ int jc_center_recalibrate_mlp1(char *result, size_t result_size)
     FILE *f = fopen(adc, "w");
     if (!f) {
         if (result && result_size > 0)
-            snprintf(result, result_size, "Could not open %s: %s", adc,
+            snprintf(result, result_size, T("Could not open %s: %s"), adc,
                      strerror(errno));
         return -1;
     }
     int wrote = fputs("1\n", f);
     if (fclose(f) != 0 || wrote == EOF) {
         if (result && result_size > 0)
-            snprintf(result, result_size, "Could not trigger recenter.");
+            snprintf(result, result_size, T("Could not trigger recenter."));
         return -1;
     }
 
@@ -681,7 +682,7 @@ int jc_center_recalibrate_mlp1(char *result, size_t result_size)
             *nl = '\0';
     }
     if (result && result_size > 0)
-        snprintf(result, result_size, "Center reset.%s%s",
+        snprintf(result, result_size, T("Center reset.%s%s"),
                  live[0] ? " " : "", live);
     return 0;
 }
@@ -689,7 +690,7 @@ int jc_center_recalibrate_mlp1(char *result, size_t result_size)
 int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t err_size)
 {
     if (!jc_config_valid(cfg)) {
-        set_err(err, err_size, "Refusing to save invalid calibration values.");
+        set_err(err, err_size, T("Refusing to save invalid calibration values."));
         return -1;
     }
 
@@ -701,7 +702,7 @@ int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t
     const char *name = (stick == JC_STICK_LEFT) ? left_name : right_name;
     char data[256];
     if (jc_config_format(cfg, data, sizeof(data)) != 0) {
-        set_err(err, err_size, "Could not format calibration values.");
+        set_err(err, err_size, T("Could not format calibration values."));
         return -1;
     }
 
@@ -717,7 +718,7 @@ int jc_config_save_stick(jc_stick stick, const jc_config *cfg, char *err, size_t
     char secondary_path[JC_PATH_MAX];
     if (join_path(primary_path, sizeof(primary_path), primary_root, name) != 0 ||
         join_path(secondary_path, sizeof(secondary_path), secondary_root, name) != 0) {
-        set_err(err, err_size, "Calibration path too long.");
+        set_err(err, err_size, T("Calibration path too long."));
         return -1;
     }
 
@@ -740,12 +741,12 @@ static int restore_one(const char *root, const char *name, char *err, size_t err
     char backup[JC_PATH_MAX];
     char text[512];
     if (join_path(path, sizeof(path), root, name) != 0) {
-        set_err(err, err_size, "Restore path too long.");
+        set_err(err, err_size, T("Restore path too long."));
         return -1;
     }
     int n = snprintf(backup, sizeof(backup), "%s.bak", path);
     if (n <= 0 || (size_t)n >= sizeof(backup)) {
-        set_err(err, err_size, "Backup path too long.");
+        set_err(err, err_size, T("Backup path too long."));
         return -1;
     }
     if (access(backup, F_OK) != 0)
@@ -766,7 +767,7 @@ static int mirror_existing_config(const char *src_root, const char *dst_root,
     char text[512];
     if (join_path(src, sizeof(src), src_root, name) != 0 ||
         join_path(dst, sizeof(dst), dst_root, name) != 0) {
-        set_err(err, err_size, "Mirror path too long.");
+        set_err(err, err_size, T("Mirror path too long."));
         return -1;
     }
     if (same_existing_file(src, dst))
@@ -803,7 +804,7 @@ int jc_config_restore_backup(char *err, size_t err_size)
     char second_left[JC_PATH_MAX];
     if (join_path(first_left, sizeof(first_left), first_root, left_name) != 0 ||
         join_path(second_left, sizeof(second_left), second_root, left_name) != 0) {
-        set_err(err, err_size, "Restore path too long.");
+        set_err(err, err_size, T("Restore path too long."));
         return -1;
     }
     if (!same_existing_file(first_left, second_left)) {
@@ -817,7 +818,7 @@ int jc_config_restore_backup(char *err, size_t err_size)
         restored += rc == 0;
     }
     if (restored == 0) {
-        set_err(err, err_size, "No calibration backups found.");
+        set_err(err, err_size, T("No calibration backups found."));
         return -1;
     }
     if (mirror_existing_config(first_root, second_root, left_name, err, err_size) != 0 ||
@@ -832,12 +833,12 @@ int jc_config_trigger_reload(char *err, size_t err_size)
     const char *path = jc_config_reload_trigger_path();
     char dir[JC_PATH_MAX];
     if (parent_dir(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
-        set_err(err, err_size, "Could not create parent directory for %s", path);
+        set_err(err, err_size, T("Could not create parent directory for %s"), path);
         return -1;
     }
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     if (fd < 0) {
-        set_err(err, err_size, "Could not trigger input reload: %s", strerror(errno));
+        set_err(err, err_size, T("Could not trigger input reload: %s"), strerror(errno));
         return -1;
     }
     close(fd);
@@ -859,7 +860,7 @@ int jc_config_apply_reload(char *err, size_t err_size)
                     "trimui_inputd >/dev/null 2>&1 & "
                     "sleep 0.6");
     if (rc != 0) {
-        set_err(err, err_size, "Could not restart trimui_inputd.");
+        set_err(err, err_size, T("Could not restart trimui_inputd."));
         return -1;
     }
     unlink(jc_config_reload_trigger_path());
