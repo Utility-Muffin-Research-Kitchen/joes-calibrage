@@ -2,6 +2,7 @@
 #include "catastrophe_widgets.h"
 
 #include "calibrage.h"
+#include "i18n.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -75,7 +76,7 @@ static void show_message(const char *message, bool error)
 {
     (void)error;
     cat_footer_item footer[] = {
-        { .button = CAT_BTN_A, .label = "OK", .is_confirm = true },
+        { .button = CAT_BTN_A, .label = T("OK"), .is_confirm = true },
     };
     cat_message_opts opts = {
         .message = message,
@@ -89,7 +90,7 @@ static void show_message(const char *message, bool error)
 static bool show_confirm(const char *message, const char *confirm_label)
 {
     cat_footer_item footer[] = {
-        { .button = CAT_BTN_B, .label = "Cancel" },
+        { .button = CAT_BTN_B, .label = T("Cancel") },
         { .button = CAT_BTN_A, .label = confirm_label, .is_confirm = true },
     };
     cat_message_opts opts = {
@@ -106,21 +107,21 @@ static ui_action show_main_menu(void)
     bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
 
     /* Single-stick platforms (MLP1) drop the right-stick entry and label the
-       lone calibration "Calibrate" rather than "Calibrate Left". A parallel map
+       lone calibration T("Calibrate") rather than T("Calibrate Left"). A parallel map
        keeps the selected index pointing at the right action. */
     cat_list_item items_dual[] = {
-        CAT_LIST_ITEM("Test Sticks", NULL),
-        CAT_LIST_ITEM("Calibrate Left", NULL),
-        CAT_LIST_ITEM("Calibrate Right", NULL),
-        CAT_LIST_ITEM("View Values", NULL),
-        CAT_LIST_ITEM("Restore Backup", NULL),
+        CAT_LIST_ITEM(T("Test Sticks"), NULL),
+        CAT_LIST_ITEM(T("Calibrate Left"), NULL),
+        CAT_LIST_ITEM(T("Calibrate Right"), NULL),
+        CAT_LIST_ITEM(T("View Values"), NULL),
+        CAT_LIST_ITEM(T("Restore Backup"), NULL),
     };
     cat_list_item items_single[] = {
-        CAT_LIST_ITEM("Test Stick", NULL),
-        CAT_LIST_ITEM("Calibrate", NULL),
-        CAT_LIST_ITEM("Center Stick", NULL),
-        CAT_LIST_ITEM("View Values", NULL),
-        CAT_LIST_ITEM("Restore Backup", NULL),
+        CAT_LIST_ITEM(T("Test Stick"), NULL),
+        CAT_LIST_ITEM(T("Calibrate"), NULL),
+        CAT_LIST_ITEM(T("Center Stick"), NULL),
+        CAT_LIST_ITEM(T("View Values"), NULL),
+        CAT_LIST_ITEM(T("Restore Backup"), NULL),
     };
     static const ui_action map_dual[] = {
         UI_ACTION_TEST, UI_ACTION_CAL_LEFT, UI_ACTION_CAL_RIGHT,
@@ -136,10 +137,10 @@ static ui_action show_main_menu(void)
     const ui_action *map = dual ? map_dual : map_single;
 
     cat_footer_item footer[] = {
-        { .button = CAT_BTN_B, .label = "Quit" },
-        { .button = CAT_BTN_A, .label = "Select", .is_confirm = true },
+        { .button = CAT_BTN_B, .label = T("Quit") },
+        { .button = CAT_BTN_A, .label = T("Select"), .is_confirm = true },
     };
-    cat_list_opts opts = cat_list_default_opts("Joe's Calibrage", items, count);
+    cat_list_opts opts = cat_list_default_opts(T("Joe's Calibrage"), items, count);
     opts.footer = footer;
     opts.footer_count = 2;
 
@@ -272,7 +273,7 @@ static void show_test_screen(void)
         bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
 
         cat_clear_screen();
-        cat_draw_screen_title(dual ? "Test Sticks" : "Test Stick", NULL);
+        cat_draw_screen_title(dual ? T("Test Sticks") : T("Test Stick"), NULL);
 
         SDL_Rect content = ui_content_rect(true);
         TTF_Font *status_font = cat_get_font(CAT_FONT_TINY);
@@ -299,41 +300,41 @@ static void show_test_screen(void)
         char left_detail[80];
         char right_detail[80];
         if (!have_axes)
-            snprintf(left_detail, sizeof(left_detail), "No input");
+            snprintf(left_detail, sizeof(left_detail), T("No input"));
         else if (have_cal)
-            snprintf(left_detail, sizeof(left_detail), "calibrated");
+            snprintf(left_detail, sizeof(left_detail), T("calibrated"));
         else
-            snprintf(left_detail, sizeof(left_detail), "raw (uncalibrated)");
-        snprintf(right_detail, sizeof(right_detail), have_axes ? "SDL axis" : "No input");
+            snprintf(left_detail, sizeof(left_detail), T("raw (uncalibrated)"));
+        snprintf(right_detail, sizeof(right_detail), have_axes ? T("SDL axis") : T("No input"));
 
         char joy_type[32] = {0};
         char status[160];
         if (jc_read_joy_type(joy_type, sizeof(joy_type)) == 0) {
-            snprintf(status, sizeof(status), "SDL: %s   platform: %s   joy: %s",
-                     have_axes ? "live" : "unavailable",
+            snprintf(status, sizeof(status), T("SDL: %s   platform: %s   joy: %s"),
+                     have_axes ? T("live") : T("unavailable"),
                      jc_platform_id_name(), joy_type);
         } else {
-            snprintf(status, sizeof(status), "SDL: %s   platform: %s",
-                     have_axes ? "live" : "unavailable",
+            snprintf(status, sizeof(status), T("SDL: %s   platform: %s"),
+                     have_axes ? T("live") : T("unavailable"),
                      jc_platform_id_name());
         }
         cat_draw_text_ellipsized(status_font, status, content.x, status_y,
                                 cat_get_theme()->hint, content.w);
 
         if (dual) {
-            draw_stick_widget(left_cx, cy, radius, axes[0], axes[1], "Left",
+            draw_stick_widget(left_cx, cy, radius, axes[0], axes[1], T("Left"),
                               left_detail, left_x, col_w);
-            draw_stick_widget(right_cx, cy, radius, axes[2], axes[3], "Right",
+            draw_stick_widget(right_cx, cy, radius, axes[2], axes[3], T("Right"),
                               right_detail, right_x, col_w);
         } else {
             /* Single analog stick: one widget centered on the content. */
             draw_stick_widget(content.x + content.w / 2, cy, radius,
-                              axes[0], axes[1], "Stick", left_detail,
+                              axes[0], axes[1], T("Stick"), left_detail,
                               content.x, content.w);
         }
 
         cat_footer_item footer[] = {
-            { .button = CAT_BTN_B, .label = "Back" },
+            { .button = CAT_BTN_B, .label = T("Back") },
         };
         cat_draw_footer(footer, 1);
         cat_request_frame();
@@ -352,16 +353,16 @@ static void draw_config_block(const char *name, const jc_config *cfg, bool loade
     TTF_Font *body_font = cat_get_font(CAT_FONT_TINY);
     char line[96];
 
-    snprintf(line, sizeof(line), "%s (%s)", name, loaded ? "saved" : "default");
+    snprintf(line, sizeof(line), T("%s (%s)"), name, loaded ? T("saved") : T("default"));
     cat_draw_text_ellipsized(section_font, line, x, y, t->text, w);
     y += font_line_h(section_font);
 
-    snprintf(line, sizeof(line), "X: min=%d  zero=%d  max=%d",
+    snprintf(line, sizeof(line), T("X: min=%d  zero=%d  max=%d"),
              cfg->x_min, cfg->x_zero, cfg->x_max);
     cat_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
     y += font_line_h(body_font);
 
-    snprintf(line, sizeof(line), "Y: min=%d  zero=%d  max=%d",
+    snprintf(line, sizeof(line), T("Y: min=%d  zero=%d  max=%d"),
              cfg->y_min, cfg->y_zero, cfg->y_max);
     cat_draw_text_ellipsized(body_font, line, x, y, t->hint, w);
 }
@@ -387,7 +388,7 @@ static void show_values_screen(void)
         }
 
         cat_clear_screen();
-        cat_draw_screen_title("Values", NULL);
+        cat_draw_screen_title(T("Values"), NULL);
         SDL_Rect content = ui_content_rect(true);
         cat_theme *t = cat_get_theme();
         TTF_Font *body_font = cat_get_font(CAT_FONT_TINY);
@@ -397,11 +398,11 @@ static void show_values_screen(void)
         int block_h = font_line_h(section_font) + font_line_h(body_font) * 2;
 
         bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
-        draw_config_block(dual ? "Left" : "Stick", &cfg.left, cfg.have_left,
+        draw_config_block(dual ? T("Left") : T("Stick"), &cfg.left, cfg.have_left,
                           content.x, y, content.w);
         y += block_h + ui_gap(12);
         if (dual) {
-            draw_config_block("Right", &cfg.right, cfg.have_right,
+            draw_config_block(T("Right"), &cfg.right, cfg.have_right,
                               content.x, y, content.w);
             y += block_h + ui_gap(14);
         } else {
@@ -409,26 +410,26 @@ static void show_values_screen(void)
         }
 
         char line[JC_PATH_MAX * 2 + 64];
-        snprintf(line, sizeof(line), "Platform: %s (%s)",
+        snprintf(line, sizeof(line), T("Platform: %s (%s)"),
                  jc_platform_display_name(), jc_platform_id_name());
         cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
-        snprintf(line, sizeof(line), "Runtime: %s", jc_config_runtime_userdata_root());
+        snprintf(line, sizeof(line), T("Runtime: %s"), jc_config_runtime_userdata_root());
         cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
-        snprintf(line, sizeof(line), "SD mirror: %s", jc_config_sd_userdata_root());
+        snprintf(line, sizeof(line), T("SD mirror: %s"), jc_config_sd_userdata_root());
         cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
         y += font_line_h(diag_font);
         if (platform_uses_split_raw()) {
-            snprintf(line, sizeof(line), "Raw: L %s  R %s",
+            snprintf(line, sizeof(line), T("Raw: L %s  R %s"),
                      jc_raw_left_device_path(), jc_raw_right_device_path());
         } else {
-            snprintf(line, sizeof(line), "Raw: %s", jc_raw_device_path());
+            snprintf(line, sizeof(line), T("Raw: %s"), jc_raw_device_path());
         }
         cat_draw_text_ellipsized(diag_font, line, content.x, y, t->hint, content.w);
 
         cat_footer_item footer[] = {
-            { .button = CAT_BTN_A, .label = "OK", .is_confirm = true },
+            { .button = CAT_BTN_A, .label = T("OK"), .is_confirm = true },
         };
         cat_draw_footer(footer, 1);
         cat_request_frame();
@@ -458,15 +459,15 @@ static void draw_calibration_screen(jc_stick stick, int step,
 {
     cat_clear_screen();
     const char *cal_title = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current())
-        ? "Calibrate"
-        : (stick == JC_STICK_LEFT ? "Calibrate Left" : "Calibrate Right");
+        ? T("Calibrate")
+        : (stick == JC_STICK_LEFT ? T("Calibrate Left") : T("Calibrate Right"));
     cat_draw_screen_title(cal_title, NULL);
     SDL_Rect content = ui_content_rect(true);
     cat_theme *t = cat_get_theme();
 
     const char *instruction = step == 0
-        ? "Rotate fully around the edge, then press A."
-        : "Release the stick and keep it centered, then press Y.";
+        ? T("Rotate fully around the edge, then press A.")
+        : T("Release the stick and keep it centered, then press Y.");
     TTF_Font *instruction_font = cat_get_font(CAT_FONT_TINY);
     TTF_Font *label_font = cat_get_font(CAT_FONT_TINY);
     TTF_Font *detail_font = cat_get_font(CAT_FONT_MICRO);
@@ -510,24 +511,24 @@ static void draw_calibration_screen(jc_stick stick, int step,
     int cx = content.x + content.w / 2;
     int circle_y = widget_top + radius;
     char detail[96];
-    snprintf(detail, sizeof(detail), "raw %d,%d", x, y);
+    snprintf(detail, sizeof(detail), T("raw %d,%d"), x, y);
     draw_stick_widget(cx, circle_y, radius, nx, ny,
-                      stick == JC_STICK_LEFT ? "Left" : "Right", detail,
+                      stick == JC_STICK_LEFT ? T("Left") : T("Right"), detail,
                       content.x, content.w);
 
     int stats_y = footer_top - stats_h - ui_gap(8);
     char stats[96];
-    snprintf(stats, sizeof(stats), "range x:%d-%d y:%d-%d",
+    snprintf(stats, sizeof(stats), T("range x:%d-%d y:%d-%d"),
              cap->x_min, cap->x_max, cap->y_min, cap->y_max);
     cat_draw_text_ellipsized(stats_font, stats, content.x, stats_y, t->hint, content.w);
-    snprintf(stats, sizeof(stats), "samples:%d  center:%d",
+    snprintf(stats, sizeof(stats), T("samples:%d  center:%d"),
              cap->range_count, cap->zero_count);
     cat_draw_text_ellipsized(stats_font, stats, content.x,
                             stats_y + font_line_h(stats_font), t->hint, content.w);
     char auto_status[96] = {0};
     const char *display_status = status_message && status_message[0] ? status_message : NULL;
     if (step == 0 && range_ready(cap)) {
-        snprintf(auto_status, sizeof(auto_status), "Range captured. Press A.");
+        snprintf(auto_status, sizeof(auto_status), T("Range captured. Press A."));
         display_status = auto_status;
     }
     if (display_status && display_status[0]) {
@@ -612,7 +613,7 @@ static void handle_calibration_button(int button, int *step,
             *step = 1;
         } else {
             snprintf(status_message, status_size,
-                     "Move the stick farther in every direction.");
+                     T("Move the stick farther in every direction."));
         }
     } else if (*step == 1 && button == CAT_BTN_Y) {
         jc_config cfg;
@@ -625,7 +626,7 @@ static void handle_calibration_button(int button, int *step,
             *final_error = true;
             *done = true;
         } else {
-            snprintf(final_message, final_size, "Calibration saved.");
+            snprintf(final_message, final_size, T("Calibration saved."));
             *final_error = false;
             *saved = true;
             *done = true;
@@ -680,7 +681,7 @@ static void calibrate_stick(jc_stick stick)
     }
     if (jc_raw_reader_open_stick(&raw, stick) != 0) {
         jc_raw_end_calibration();
-        show_message(raw.error[0] ? raw.error : "Raw stick stream unavailable.", true);
+        show_message(raw.error[0] ? raw.error : T("Raw stick stream unavailable."), true);
         return;
     }
 
@@ -699,7 +700,7 @@ static void calibrate_stick(jc_stick stick)
     while (!done) {
         int poll = jc_raw_reader_poll(&raw, &sample);
         if (poll < 0) {
-            show_message(raw.error[0] ? raw.error : "Could not read raw stick stream.", true);
+            show_message(raw.error[0] ? raw.error : T("Could not read raw stick stream."), true);
             cancelled = true;
             break;
         }
@@ -737,14 +738,14 @@ static void calibrate_stick(jc_stick stick)
 
         draw_calibration_screen(stick, step, &cap, &sample, status_message);
         cat_footer_item footer_step0[] = {
-            { .button = CAT_BTN_B, .label = "Cancel" },
-            { .button = CAT_BTN_X, .label = "Reset" },
-            { .button = CAT_BTN_A, .label = "Next", .is_confirm = true },
+            { .button = CAT_BTN_B, .label = T("Cancel") },
+            { .button = CAT_BTN_X, .label = T("Reset") },
+            { .button = CAT_BTN_A, .label = T("Next"), .is_confirm = true },
         };
         cat_footer_item footer_step1[] = {
-            { .button = CAT_BTN_B, .label = "Cancel" },
-            { .button = CAT_BTN_X, .label = "Reset" },
-            { .button = CAT_BTN_Y, .label = "Save", .is_confirm = true },
+            { .button = CAT_BTN_B, .label = T("Cancel") },
+            { .button = CAT_BTN_X, .label = T("Reset") },
+            { .button = CAT_BTN_Y, .label = T("Save"), .is_confirm = true },
         };
         if (step == 0)
             cat_draw_footer(footer_step0, 3);
@@ -759,41 +760,41 @@ static void calibrate_stick(jc_stick stick)
     if (saved) {
         if (apply_runtime_reload(err, sizeof(err)) != 0) {
             snprintf(final_message, sizeof(final_message),
-                     "Calibration saved, but input restart failed.");
+                     T("Calibration saved, but input restart failed."));
             final_error = true;
         }
     }
     if (final_message[0])
         show_message(final_message, final_error);
     else if (cancelled)
-        show_message("Calibration cancelled.", false);
+        show_message(T("Calibration cancelled."), false);
 }
 
 static void restore_backup_flow(void)
 {
-    if (!show_confirm("Restore the first-run backups for both sticks?", "Restore"))
+    if (!show_confirm(T("Restore the first-run backups for both sticks?"), T("Restore")))
         return;
     char err[160] = {0};
     if (jc_config_restore_backup(err, sizeof(err)) != 0)
-        show_message(err[0] ? err : "Could not restore backups.", true);
+        show_message(err[0] ? err : T("Could not restore backups."), true);
     else if (apply_runtime_reload(err, sizeof(err)) != 0)
-        show_message(err[0] ? err : "Backups restored, but input restart failed.", true);
+        show_message(err[0] ? err : T("Backups restored, but input restart failed."), true);
     else
-        show_message("Backups restored.", false);
+        show_message(T("Backups restored."), false);
 }
 
 /* Kernel-level recenter (MLP1): re-reads the ADC center with the stick released,
    so a drifting rest position is zeroed at the driver. */
 static void center_stick_flow(void)
 {
-    if (!show_confirm("Let go of the stick and keep it centered, then confirm.",
-                      "Recenter"))
+    if (!show_confirm(T("Let go of the stick and keep it centered, then confirm."),
+                      T("Recenter")))
         return;
     char result[160] = {0};
     if (jc_center_recalibrate_mlp1(result, sizeof(result)) != 0)
-        show_message(result[0] ? result : "Could not recenter the stick.", true);
+        show_message(result[0] ? result : T("Could not recenter the stick."), true);
     else
-        show_message(result[0] ? result : "Center reset.", false);
+        show_message(result[0] ? result : T("Center reset."), false);
 }
 
 void jc_ui_run(void)
