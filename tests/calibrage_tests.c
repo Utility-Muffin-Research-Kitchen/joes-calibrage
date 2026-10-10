@@ -55,6 +55,39 @@ static void clear_path_envs(void)
     unsetenv("USERDATA_PATH");
 }
 
+/* MLP1 range sweep: X -21000..23000, Y -20000..22000. */
+static void add_mlp1_range(jc_calibration_capture *cap)
+{
+    for (int i = 0; i < 40; i++) {
+        int x = (i % 2 == 0) ? -21000 : 23000;
+        int y = (i % 2 == 0) ? -20000 : 22000;
+        jc_capture_add_range(cap, x, y);
+    }
+}
+
+/* Right, left, up, down. */
+static const int release_dirs[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+
+/* Center step: push the stick to an edge and on its way back. */
+static void add_release_transit(jc_calibration_capture *cap, int r)
+{
+    int dx = release_dirs[r % 4][0];
+    int dy = release_dirs[r % 4][1];
+    jc_capture_add_center(cap, dx * 22000, dy * 21000);
+    jc_capture_add_center(cap, dx * 9000, dy * 9000);
+}
+
+/* One full release: push out, travel back through one fuzz-averaged step on the
+   approach side, then rest at (rx, ry) for n frames. */
+static void add_release(jc_calibration_capture *cap, int r, int rx, int ry, int n)
+{
+    add_release_transit(cap, r);
+    jc_capture_add_center(cap, rx + release_dirs[r % 4][0] * 400,
+                          ry + release_dirs[r % 4][1] * 400);
+    for (int i = 0; i < n; i++)
+        jc_capture_add_center(cap, rx, ry);
+}
+
 static void test_parse_and_format(void)
 {
     clear_path_envs();
@@ -541,13 +574,12 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
     /* Capture math over a signed range that straddles zero. */
     jc_calibration_capture cap;
     jc_capture_reset(&cap);
-    for (int i = 0; i < 40; i++) {
-        int x = (i % 2 == 0) ? -21000 : 23000;
-        int y = (i % 2 == 0) ? -20000 : 22000;
-        jc_capture_add_range(&cap, x, y);
+    add_mlp1_range(&cap);
+    for (int r = 0; r < 4; r++) {
+        add_release_transit(&cap, r);
+        for (int i = 0; i < 12; i++)
+            jc_capture_add_center(&cap, (i % 3) - 1, (i % 2));
     }
-    for (int i = 0; i < 12; i++)
-        jc_capture_add_center(&cap, (i % 3) - 1, (i % 2));
     CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
     CHECK(cfg.x_min == -21000);
     CHECK(cfg.x_max == 23000);
@@ -578,18 +610,18 @@ static void test_center_stability(void)
     setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
     jc_calibration_capture cap;
     jc_capture_reset(&cap);
-    for (int i = 0; i < 40; i++) {
-        int x = (i % 2 == 0) ? -21000 : 23000;
-        int y = (i % 2 == 0) ? -20000 : 22000;
-        jc_capture_add_range(&cap, x, y);
-    }
-    /* Center step begins while the stick is still traveling back from the edge:
+    add_mlp1_range(&cap);
+    /* Each release starts while the stick is still traveling back from the edge:
        a few far-apart transition samples, then a tight rest near (-1000, 500). */
     int transition[] = { 23000, 17000, 11000, 5000 };
-    for (size_t i = 0; i < sizeof(transition) / sizeof(transition[0]); i++)
-        jc_capture_add_center(&cap, transition[i], transition[i]);
-    for (int i = 0; i < 30; i++)
-        jc_capture_add_center(&cap, -1000 + (i % 3) - 1, 500 + (i % 2));
+    for (int r = 0; r < 4; r++) {
+        for (size_t i = 0; i < sizeof(transition) / sizeof(transition[0]); i++) {
+            int v = (r % 2) ? -transition[i] : transition[i];
+            jc_capture_add_center(&cap, v, v);
+        }
+        for (int i = 0; i < 30; i++)
+            jc_capture_add_center(&cap, -1000 + (i % 3) - 1, 500 + (i % 2));
+    }
 
     jc_config cfg;
     char err[128] = {0};
@@ -598,6 +630,120 @@ static void test_center_stability(void)
     CHECK(cfg.x_zero >= -1001 && cfg.x_zero <= -999);
     CHECK(cfg.y_zero >= 500 && cfg.y_zero <= 501);
     CHECK(cfg.center_noise <= 30);
+}
+
+/* MLP1 evdev: the Loong Gamepad reports ABS_X/ABS_Y with fuzz 1152 and flat
+   1152. A resting stick sends no events, so EVIOCGABS returns a value latched
+   anywhere within fuzz/2 of the real rest, constant for as long as the stick
+   stays put. Measured on a unit that rested at X 526, Y 1080. */
+#define MLP1_FUZZ 1152
+#define MLP1_FLAT 1152
+
+static void test_mlp1_center_under_fuzz_latch(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    jc_config cfg;
+    char err[128] = {0};
+
+    /* Every release latches the same value: zero variance across the whole
+       center step. The zero is the measured rest, not 0, and the band still
+       spans the fuzz instead of collapsing to 0. */
+    jc_calibration_capture cap;
+    jc_capture_reset(&cap);
+    jc_capture_set_input_filter(&cap, MLP1_FUZZ, MLP1_FLAT);
+    add_mlp1_range(&cap);
+    for (int r = 0; r < 4; r++)
+        add_release(&cap, r, 526, 1080, 20);
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_zero == 526);
+    CHECK(cfg.y_zero == 1080);
+    CHECK(cfg.center_noise == MLP1_FUZZ);
+
+    /* Different rest after each release. The zero sits mid-extent and the band
+       is the largest deviation plus a full fuzz. */
+    int rest_x[] = { 526, 1008, 790, 1100 };
+    int rest_y[] = { 1080, 1224, 650, 1000 };
+    jc_capture_reset(&cap);
+    jc_capture_set_input_filter(&cap, MLP1_FUZZ, MLP1_FLAT);
+    add_mlp1_range(&cap);
+    for (int r = 0; r < 4; r++)
+        add_release(&cap, r, rest_x[r], rest_y[r], 20);
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_zero == 813);    /* 526..1100 */
+    CHECK(cfg.y_zero == 937);    /* 650..1224 */
+    CHECK(cfg.center_noise == 287 + MLP1_FUZZ);
+
+    /* A later release can latch fuzz/2 to either side of any rest seen here,
+       and the band still covers it. */
+    for (int r = 0; r < 4; r++) {
+        CHECK(abs(rest_x[r] - MLP1_FUZZ / 2 - cfg.x_zero) <= cfg.center_noise);
+        CHECK(abs(rest_x[r] + MLP1_FUZZ / 2 - cfg.x_zero) <= cfg.center_noise);
+        CHECK(abs(rest_y[r] - MLP1_FUZZ / 2 - cfg.y_zero) <= cfg.center_noise);
+        CHECK(abs(rest_y[r] + MLP1_FUZZ / 2 - cfg.y_zero) <= cfg.center_noise);
+    }
+
+    /* The driver's declared flat is a floor for the band. */
+    jc_capture_reset(&cap);
+    jc_capture_set_input_filter(&cap, 0, 2000);
+    add_mlp1_range(&cap);
+    for (int r = 0; r < 4; r++)
+        add_release(&cap, r, 300, -200, 20);
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.center_noise == 2000);
+}
+
+static void test_mlp1_center_needs_release_cycles(void)
+{
+    clear_path_envs();
+    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    CHECK(jc_capture_rest_cycles_needed() == 4);
+    jc_config cfg;
+    char err[128] = {0};
+
+    jc_calibration_capture cap;
+    jc_capture_reset(&cap);
+    jc_capture_set_input_filter(&cap, MLP1_FUZZ, MLP1_FLAT);
+    add_mlp1_range(&cap);
+    CHECK(!jc_capture_center_ready(&cap));
+
+    /* Too short to settle: no cycle. */
+    for (int i = 0; i < 5; i++)
+        jc_capture_add_center(&cap, 500, 900);
+    CHECK(cap.rest_cycles == 0);
+
+    for (int r = 0; r < 3; r++)
+        add_release(&cap, r, 500, 900, 20);
+    CHECK(cap.rest_cycles == 3);
+    CHECK(!jc_capture_center_ready(&cap));
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) != 0);
+
+    /* Creeping to a new rest without pushing the stick away widens the band but
+       is not another release. */
+    for (int i = 0; i < 20; i++)
+        jc_capture_add_center(&cap, 800, 900);
+    CHECK(cap.rest_cycles == 3);
+    CHECK(cap.x_zero_max == 800);
+
+    /* Holding the stick part-way out is not a rest, however still it is. */
+    for (int i = 0; i < 40; i++)
+        jc_capture_add_center(&cap, 9000, 900);
+    CHECK(cap.rest_cycles == 3);
+    CHECK(cap.x_zero_max == 800);
+
+    /* That push did arm the next cycle, so letting go now completes it. */
+    for (int i = 0; i < 20; i++)
+        jc_capture_add_center(&cap, 600, 1000);
+    CHECK(cap.rest_cycles == 4);
+    CHECK(jc_capture_center_ready(&cap));
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_zero == 650);    /* 500..800 */
+    CHECK(cfg.y_zero == 950);    /* 900..1000 */
+    CHECK(cfg.center_noise == 150 + MLP1_FUZZ);
+
+    /* Reset keeps nothing, including the input filter. */
+    jc_capture_reset(&cap);
+    CHECK(cap.rest_cycles == 0 && cap.zero_count == 0 && cap.fuzz == 0);
 }
 
 static void test_mlp1_profile_save_and_backup(void)
@@ -714,6 +860,8 @@ int main(void)
     test_capture_math();
     test_mlp1_signed_defaults_capture_and_normalize();
     test_center_stability();
+    test_mlp1_center_under_fuzz_latch();
+    test_mlp1_center_needs_release_cycles();
     test_mlp1_profile_save_and_backup();
     test_mlp1_center_recalibrate();
     test_save_restore_and_reload();

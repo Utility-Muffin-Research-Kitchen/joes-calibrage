@@ -61,7 +61,15 @@ msgid "Cancel"
 msgstr ""
 
 #: src/ui.c
+msgid "Captured %d of %d releases."
+msgstr ""
+
+#: src/ui.c
 msgid "Center Stick"
+msgstr ""
+
+#: src/ui.c
+msgid "Center captured. Press Y."
 msgstr ""
 
 #: src/ui.c
@@ -226,6 +234,10 @@ msgstr ""
 
 #: src/config.c
 msgid "Profile path too long."
+msgstr ""
+
+#: src/ui.c
+msgid "Push the stick to an edge and let it snap back. Repeat in each direction, then press Y."
 msgstr ""
 
 #: src/ui.c

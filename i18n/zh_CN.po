@@ -45,8 +45,16 @@ msgstr "校准值无效。"
 msgid "Cancel"
 msgstr "取消"
 
+#, fuzzy
+msgid "Captured %d of %d releases."
+msgstr "已采集 %d/%d 次回中。"
+
 msgid "Center Stick"
 msgstr "摇杆居中"
+
+#, fuzzy
+msgid "Center captured. Press Y."
+msgstr "中心已采集，按 Y 保存。"
 
 msgid "Center reset."
 msgstr "已重置摇杆中心。"
@@ -170,6 +178,10 @@ msgstr "配置文件 JSON 过大。"
 
 msgid "Profile path too long."
 msgstr "配置文件路径过长。"
+
+#, fuzzy
+msgid "Push the stick to an edge and let it snap back. Repeat in each direction, then press Y."
+msgstr "将摇杆推到边缘后松开，让它自动回中。每个方向各做一次，然后按 Y。"
 
 msgid "Quit"
 msgstr "退出"

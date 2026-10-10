@@ -109,6 +109,10 @@ static const jc_platform_info platform_mlp1 = {
     .calibration_flag_path = NULL,
     .raw_baud = 0,
     .raw_format = JC_RAW_FORMAT_MLP1,
+    /* The stick rests somewhere different after each release, and evdev fuzz
+       latches each rest anywhere within fuzz/2, so one settle is a single point
+       of the rest band. Sample a few releases, one per direction. */
+    .rest_cycles = 4,
 };
 
 static int env_is(const char *env, const char *value)

@@ -248,6 +248,27 @@ static int open_stream(jc_raw_reader *reader, int index, const char *path,
     return 0;
 }
 
+/* Record the kernel's fuzz/flat for the stick axes. The input core drops any
+   reading within fuzz/2 of the last reported value, which decides how far a
+   resting stick's reported value can sit from where it really rests. */
+static void read_evdev_filter(jc_raw_reader *reader)
+{
+#if defined(__linux__)
+    struct input_absinfo info;
+    int codes[] = { ABS_X, ABS_Y };
+    for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); i++) {
+        if (ioctl(reader->streams[0].fd, EVIOCGABS(codes[i]), &info) != 0)
+            continue;
+        if (info.fuzz > reader->abs_fuzz)
+            reader->abs_fuzz = info.fuzz;
+        if (info.flat > reader->abs_flat)
+            reader->abs_flat = info.flat;
+    }
+#else
+    (void)reader;
+#endif
+}
+
 int jc_raw_reader_open(jc_raw_reader *reader)
 {
     if (!reader)
@@ -267,7 +288,11 @@ int jc_raw_reader_open(jc_raw_reader *reader)
     }
 
     reader->stream_count = 1;
-    return open_stream(reader, 0, jc_raw_device_path(), JC_STICK_LEFT, true);
+    if (open_stream(reader, 0, jc_raw_device_path(), JC_STICK_LEFT, true) != 0)
+        return -1;
+    if (platform_uses_evdev())
+        read_evdev_filter(reader);
+    return 0;
 }
 
 int jc_raw_reader_open_stick(jc_raw_reader *reader, jc_stick stick)
@@ -493,11 +518,14 @@ static int poll_stream(jc_raw_reader *reader, jc_raw_stream *stream, jc_raw_samp
 }
 
 /* MLP1 reads the evdev stick. evdev only emits EV_ABS events when the value
-   *changes*, so a stick at rest produces nothing — useless for sampling the
-   resting center. Instead we read the instantaneous absolute position with
-   EVIOCGABS, which returns the current value with no event required, so both the
-   range sweep and the resting center sample continuously. The event queue is
-   still drained each poll so the kernel buffer can't overflow. */
+   *changes*, so a stick at rest produces nothing. EVIOCGABS returns the axis
+   value with no event required, so both the range sweep and the center step can
+   sample every frame. It is the last *reported* value, not a fresh ADC read:
+   the input core drops readings within fuzz/2 of it, so a resting stick reads a
+   constant latched value. That is the same value Leaf's input proxy forwards,
+   and the center capture accounts for the fuzz (see jc_capture_add_center).
+   The event queue is still drained each poll so the kernel buffer can't
+   overflow. */
 static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
 {
 #if defined(__linux__)

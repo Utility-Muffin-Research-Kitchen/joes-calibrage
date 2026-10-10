@@ -465,9 +465,12 @@ static void draw_calibration_screen(jc_stick stick, int step,
     SDL_Rect content = ui_content_rect(true);
     cat_theme *t = cat_get_theme();
 
+    int rest_needed = jc_capture_rest_cycles_needed();
     const char *instruction = step == 0
         ? T("Rotate fully around the edge, then press A.")
-        : T("Release the stick and keep it centered, then press Y.");
+        : rest_needed > 1
+            ? T("Push the stick to an edge and let it snap back. Repeat in each direction, then press Y.")
+            : T("Release the stick and keep it centered, then press Y.");
     TTF_Font *instruction_font = cat_get_font(CAT_FONT_TINY);
     TTF_Font *label_font = cat_get_font(CAT_FONT_TINY);
     TTF_Font *detail_font = cat_get_font(CAT_FONT_MICRO);
@@ -529,6 +532,14 @@ static void draw_calibration_screen(jc_stick stick, int step,
     const char *display_status = status_message && status_message[0] ? status_message : NULL;
     if (step == 0 && range_ready(cap)) {
         snprintf(auto_status, sizeof(auto_status), T("Range captured. Press A."));
+        display_status = auto_status;
+    } else if (step == 1 && jc_capture_center_ready(cap)) {
+        snprintf(auto_status, sizeof(auto_status), T("Center captured. Press Y."));
+        display_status = auto_status;
+    } else if (step == 1 && rest_needed > 1 && !display_status) {
+        int captured = cap->rest_cycles < rest_needed ? cap->rest_cycles : rest_needed;
+        snprintf(auto_status, sizeof(auto_status), T("Captured %d of %d releases."),
+                 captured, rest_needed);
         display_status = auto_status;
     }
     if (display_status && display_status[0]) {
@@ -606,7 +617,11 @@ static void handle_calibration_button(int button, int *step,
         *cancelled = true;
         *done = true;
     } else if (button == CAT_BTN_X) {
+        /* The input filter belongs to the device, not the samples. */
+        int fuzz = cap->fuzz;
+        int flat = cap->flat;
         jc_capture_reset(cap);
+        jc_capture_set_input_filter(cap, fuzz, flat);
         *step = 0;
     } else if (*step == 0 && button == CAT_BTN_A) {
         if (range_ready(cap)) {
@@ -615,6 +630,8 @@ static void handle_calibration_button(int button, int *step,
             snprintf(status_message, status_size,
                      T("Move the stick farther in every direction."));
         }
+    } else if (*step == 1 && button == CAT_BTN_Y && !jc_capture_center_ready(cap)) {
+        snprintf(status_message, status_size, T("Not enough center samples."));
     } else if (*step == 1 && button == CAT_BTN_Y) {
         jc_config cfg;
         if (jc_capture_make_config(cap, &cfg, err, sizeof(err)) != 0) {
@@ -687,6 +704,7 @@ static void calibrate_stick(jc_stick stick)
 
     jc_calibration_capture cap;
     jc_capture_reset(&cap);
+    jc_capture_set_input_filter(&cap, raw.abs_fuzz, raw.abs_flat);
     int step = 0;
     bool done = false;
     bool cancelled = false;

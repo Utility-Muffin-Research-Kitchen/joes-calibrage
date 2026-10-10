@@ -24,7 +24,7 @@ full advertised range.
 
 1. **Capture** — the app reads the raw stick from the kernel input device
    (evdev `ABS_X` / `ABS_Y`) while you roll the stick around its edge, then
-   records the center while you let it rest.
+   records where it comes to rest each time you push it out and let go.
 2. **Profile** — it writes a calibration profile to the durable user-data tree:
 
    ```text
@@ -44,8 +44,8 @@ full advertised range.
 The MLP1 has a single analog stick, so the UI is single-stick.
 
 - **Test Stick** — live view of the stick position, to confirm what apps see.
-- **Calibrate** — roll the stick around the edge (range), then rest it (center),
-  then save.
+- **Calibrate** — roll the stick around the edge (range), then push it to each
+  edge and let it snap back (center), then save.
 - **View Values** — the current saved calibration and diagnostics.
 - **Restore Backup** — restore a previous calibration backup.
 

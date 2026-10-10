@@ -55,6 +55,7 @@ typedef struct {
     const char *calibration_flag_path;
     int raw_baud;
     jc_raw_format raw_format;
+    int rest_cycles;   /* release-and-settle cycles the center needs (0 = 1) */
 } jc_platform_info;
 
 typedef struct {
@@ -64,7 +65,7 @@ typedef struct {
     int y_max;
     int x_zero;
     int y_zero;
-    int center_noise;   /* peak center jitter from capture (0 if unknown) */
+    int center_noise;   /* half-width of the rest band around the zero (0 if unknown) */
 } jc_config;
 
 typedef struct {
@@ -91,14 +92,27 @@ typedef struct {
     int x_max;
     int y_min;
     int y_max;
-    long x_zero_sum;
+    long x_zero_sum;  /* settled rest samples, across every release cycle */
     long y_zero_sum;
     int zero_count;
     int range_count;
-    int x_zero_min;   /* center-sample extent, for peak-jitter (deadzone) sizing */
+    int x_zero_min;   /* settled rest extent, for rest-band (deadzone) sizing */
     int x_zero_max;
     int y_zero_min;
     int y_zero_max;
+    int rest_cycles;  /* release-and-settle cycles captured so far */
+    bool rest_armed;  /* stick left the rest area since the last counted cycle */
+    int win_x;        /* current settle window: first sample + running stats */
+    int win_y;
+    int win_count;
+    long win_x_sum;
+    long win_y_sum;
+    int win_x_min;
+    int win_x_max;
+    int win_y_min;
+    int win_y_max;
+    int fuzz;         /* kernel input filter on the axes (evdev absinfo), 0 if none */
+    int flat;
 } jc_calibration_capture;
 
 typedef struct {
@@ -116,6 +130,8 @@ typedef struct {
     jc_raw_sample last;
     bool have_left;
     bool have_right;
+    int abs_fuzz;     /* evdev ABS_X/ABS_Y fuzz and flat (larger axis), 0 if none */
+    int abs_flat;
     char error[160];
 } jc_raw_reader;
 
@@ -141,8 +157,11 @@ const char *jc_config_reload_trigger_path(void);
 int jc_read_joy_type(char *buf, size_t buf_size);
 
 void jc_capture_reset(jc_calibration_capture *cap);
+void jc_capture_set_input_filter(jc_calibration_capture *cap, int fuzz, int flat);
 void jc_capture_add_range(jc_calibration_capture *cap, int x, int y);
 void jc_capture_add_center(jc_calibration_capture *cap, int x, int y);
+int jc_capture_rest_cycles_needed(void);
+bool jc_capture_center_ready(const jc_calibration_capture *cap);
 int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
                            char *err, size_t err_size);
 int jc_clamp_raw(int value);
