@@ -112,6 +112,7 @@ void jc_config_default(jc_config *cfg)
     cfg->y_max = platform->default_y_max;
     cfg->x_zero = platform->default_x_zero;
     cfg->y_zero = platform->default_y_zero;
+    cfg->center_noise = platform->driver_deadzone;
 }
 
 bool jc_config_valid(const jc_config *cfg)

@@ -196,16 +196,34 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
 
 float jc_config_normalize_axis(int raw, int min, int zero, int max)
 {
+    return jc_config_normalize_axis_dz(raw, min, zero, max, 0);
+}
+
+/* Same mapping as Leaf's input proxy (Jawaka jw_calibration_axis): anything
+   within the deadzone of zero is 0, and travel starts from the deadzone edge. */
+float jc_config_normalize_axis_dz(int raw, int min, int zero, int max, int deadzone)
+{
     raw = jc_clamp_raw(raw);
-    if (raw < zero) {
-        int span = zero - min;
+    if (deadzone < 0)
+        deadzone = 0;
+    int delta = raw - zero;
+    if (delta <= deadzone && delta >= -deadzone)
+        return 0.0f;
+    if (delta < 0) {
+        int span = zero - min - deadzone;
         if (span <= 0)
             return 0.0f;
-        return clamp_norm(-((float)(zero - raw) / (float)span));
+        return clamp_norm((float)(delta + deadzone) / (float)span);
     }
 
-    int span = max - zero;
+    int span = max - zero - deadzone;
     if (span <= 0)
         return 0.0f;
-    return clamp_norm((float)(raw - zero) / (float)span);
+    return clamp_norm((float)(delta - deadzone) / (float)span);
+}
+
+int jc_config_runtime_deadzone(const jc_config *cfg)
+{
+    int floor = jc_platform_current()->driver_deadzone;
+    return cfg && cfg->center_noise > floor ? cfg->center_noise : floor;
 }

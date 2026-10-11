@@ -153,6 +153,8 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
                            char *err, size_t err_size);
 int jc_clamp_raw(int value);
 float jc_config_normalize_axis(int raw, int min, int zero, int max);
+float jc_config_normalize_axis_dz(int raw, int min, int zero, int max, int deadzone);
+int jc_config_runtime_deadzone(const jc_config *cfg);   /* what Leaf applies */
 
 void jc_raw_reader_init(jc_raw_reader *reader);
 int jc_raw_reader_open(jc_raw_reader *reader);

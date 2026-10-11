@@ -185,10 +185,12 @@ static bool read_sdl_sticks(SDL_Joystick *joy, float out[4], const jc_config *ca
     int raw_x = SDL_JoystickGetAxis(joy, 0);
     int raw_y = SDL_JoystickGetAxis(joy, 1);
     if (cal) {
-        /* Preview the calibrated result: map the raw stick through the saved
-           profile so the dot reaches the edge at full physical throw. */
-        out[0] = jc_config_normalize_axis(raw_x, cal->x_min, cal->x_zero, cal->x_max);
-        out[1] = jc_config_normalize_axis(raw_y, cal->y_min, cal->y_zero, cal->y_max);
+        /* Preview what games see: map the raw stick the way Leaf does, so the
+           dot reaches the edge at full physical throw and a released stick's
+           latched leftover sits at center. */
+        int dz = jc_config_runtime_deadzone(cal);
+        out[0] = jc_config_normalize_axis_dz(raw_x, cal->x_min, cal->x_zero, cal->x_max, dz);
+        out[1] = jc_config_normalize_axis_dz(raw_y, cal->y_min, cal->y_zero, cal->y_max, dz);
     } else {
         out[0] = norm_sdl_axis((Sint16)raw_x);
         out[1] = norm_sdl_axis((Sint16)raw_y);
@@ -253,11 +255,13 @@ static void show_test_screen(void)
     SDL_Joystick *joy = open_joystick();
 
     /* On the single-stick MLP1, preview the calibrated stick (what games see)
-       by mapping the live reading through the saved profile. Falls back to the
-       raw view if no profile is saved yet. */
+       by mapping the live reading through the saved profile, or through Leaf's
+       built-in default when none is saved. */
     jc_config cal_cfg;
-    bool have_cal = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current()) &&
-                    jc_profile_load_mlp1(&cal_cfg) == 0;
+    bool single = !JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
+    bool have_profile = single && jc_profile_load_mlp1(&cal_cfg) == 0;
+    if (single && !have_profile)
+        jc_config_default(&cal_cfg);
 
     bool done = false;
     while (!done) {
@@ -268,7 +272,7 @@ static void show_test_screen(void)
         }
 
         float axes[4] = {0};
-        bool have_axes = read_sdl_sticks(joy, axes, have_cal ? &cal_cfg : NULL);
+        bool have_axes = read_sdl_sticks(joy, axes, single ? &cal_cfg : NULL);
 
         bool dual = JC_PLATFORM_HAS_RIGHT_STICK(jc_platform_current());
 
@@ -301,8 +305,10 @@ static void show_test_screen(void)
         char right_detail[80];
         if (!have_axes)
             snprintf(left_detail, sizeof(left_detail), T("No input"));
-        else if (have_cal)
+        else if (have_profile)
             snprintf(left_detail, sizeof(left_detail), T("calibrated"));
+        else if (single)
+            snprintf(left_detail, sizeof(left_detail), T("default"));
         else
             snprintf(left_detail, sizeof(left_detail), T("raw (uncalibrated)"));
         snprintf(right_detail, sizeof(right_detail), have_axes ? T("SDL axis") : T("No input"));

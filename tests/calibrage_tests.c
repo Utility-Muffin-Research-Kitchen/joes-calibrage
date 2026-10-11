@@ -521,12 +521,14 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
 
     jc_config cfg;
     jc_config_default(&cfg);
-    CHECK(cfg.x_min == -22000);
-    CHECK(cfg.x_max == 22000);
-    CHECK(cfg.y_min == -22000);
-    CHECK(cfg.y_max == 22000);
+    /* Leaf's built-in calibration (Jawaka jw_calibration_default). */
+    CHECK(cfg.x_min == -21000);
+    CHECK(cfg.x_max == 23000);
+    CHECK(cfg.y_min == -21000);
+    CHECK(cfg.y_max == 23000);
     CHECK(cfg.x_zero == 0);
     CHECK(cfg.y_zero == 0);
+    CHECK(cfg.center_noise == 1800);
 
     /* Parse signed (negative) values. */
     const char *text =
@@ -582,6 +584,27 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
     CHECK(jc_config_normalize_axis(-32768, -22000, 0, 22000) == -1.0f);
     CHECK(jc_config_normalize_axis(22000, -22000, 0, 22000) == 1.0f);
     CHECK(jc_config_normalize_axis(0, -22000, 0, 22000) == 0.0f);
+
+    /* Test Stick previews what games see, through Leaf's deadzone: any latched
+       leftover (strictly inside the 1152 fuzz) sits at center, travel starts
+       at the deadzone edge, and full throw still reaches the edge. */
+    jc_config_default(&cfg);
+    int dz = jc_config_runtime_deadzone(&cfg);
+    CHECK(dz == 1800);
+    for (int v = -1151; v <= 1151; v += 383) {
+        CHECK(jc_config_normalize_axis_dz(v, cfg.x_min, 0, cfg.x_max, dz) == 0.0f);
+        CHECK(jc_config_normalize_axis_dz(v, cfg.y_min, 0, cfg.y_max, dz) == 0.0f);
+    }
+    CHECK(jc_config_normalize_axis_dz(1800, cfg.x_min, 0, cfg.x_max, dz) == 0.0f);
+    CHECK(jc_config_normalize_axis_dz(1872, cfg.x_min, 0, cfg.x_max, dz) > 0.0f);
+    CHECK(jc_config_normalize_axis_dz(1872, cfg.x_min, 0, cfg.x_max, dz) < 0.01f);
+    CHECK(jc_config_normalize_axis_dz(cfg.x_max, cfg.x_min, 0, cfg.x_max, dz) == 1.0f);
+    CHECK(jc_config_normalize_axis_dz(cfg.y_min, cfg.y_min, 0, cfg.y_max, dz) == -1.0f);
+    /* An old profile saved with center_noise 0 still gets the driver's deadzone. */
+    cfg.center_noise = 0;
+    CHECK(jc_config_runtime_deadzone(&cfg) == 1800);
+    cfg.center_noise = 2500;
+    CHECK(jc_config_runtime_deadzone(&cfg) == 2500);
 }
 
 /* Platforms that still capture a center (MLP1 does not; see above). */
