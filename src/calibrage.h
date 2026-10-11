@@ -55,7 +55,13 @@ typedef struct {
     const char *calibration_flag_path;
     int raw_baud;
     jc_raw_format raw_format;
+    int driver_deadzone;   /* >0: the driver centers the stick itself (see below) */
 } jc_platform_info;
+
+/* The stick driver re-centers at boot and reports 0 inside its own deadzone, so
+   there is no center to capture: the zero is the platform default and the rest
+   band is the driver's deadzone. */
+#define JC_PLATFORM_DRIVER_CENTERED(p) ((p)->driver_deadzone > 0)
 
 typedef struct {
     int x_min;
@@ -147,6 +153,8 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
                            char *err, size_t err_size);
 int jc_clamp_raw(int value);
 float jc_config_normalize_axis(int raw, int min, int zero, int max);
+float jc_config_normalize_axis_dz(int raw, int min, int zero, int max, int deadzone);
+int jc_config_runtime_deadzone(const jc_config *cfg);   /* what Leaf applies */
 
 void jc_raw_reader_init(jc_raw_reader *reader);
 int jc_raw_reader_open(jc_raw_reader *reader);

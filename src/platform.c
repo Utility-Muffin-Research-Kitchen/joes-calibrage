@@ -92,10 +92,12 @@ static const jc_platform_info platform_mlp1 = {
     .raw_min = -32768,
     .raw_max = 32767,
     .min_range = 12000,
-    .default_x_min = -22000,
-    .default_x_max = 22000,
-    .default_y_min = -22000,
-    .default_y_max = 22000,
+    /* Leaf's built-in calibration (Jawaka jw_calibration_default), which every
+       measured unit reaches. Keep the two in step. */
+    .default_x_min = -21000,
+    .default_x_max = 23000,
+    .default_y_min = -21000,
+    .default_y_max = 23000,
     .default_x_zero = 0,
     .default_y_zero = 0,
     .sd_userdata_root = "/mnt/sdcard/.userdata/mlp1/input",
@@ -109,6 +111,12 @@ static const jc_platform_info platform_mlp1 = {
     .calibration_flag_path = NULL,
     .raw_baud = 0,
     .raw_format = JC_RAW_FORMAT_MLP1,
+    /* loong1-joystick re-centers at every boot (median of its last nine
+       boot-time readings) and reports exactly 0 within 1800 of center (DT
+       button-adc-deadzone). The kernel's fuzz (1152) then averages that 0 into
+       a leftover that latches, so a resting stick's reading is not its rest
+       and a center capture only measures that leftover. */
+    .driver_deadzone = 1800,
 };
 
 static int env_is(const char *env, const char *value)

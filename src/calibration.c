@@ -133,6 +133,25 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
         set_err(err, err_size, T("Move the stick farther in every direction."));
         return -1;
     }
+
+    const jc_platform_info *platform = jc_platform_current();
+    if (JC_PLATFORM_DRIVER_CENTERED(platform)) {
+        /* Only the range is the unit's own. Center samples are ignored: a
+           resting stick reads a latched leftover, not where it rests. */
+        out->x_min = jc_clamp_raw(cap->x_min);
+        out->x_max = jc_clamp_raw(cap->x_max);
+        out->y_min = jc_clamp_raw(cap->y_min);
+        out->y_max = jc_clamp_raw(cap->y_max);
+        out->x_zero = platform->default_x_zero;
+        out->y_zero = platform->default_y_zero;
+        out->center_noise = platform->driver_deadzone;
+        if (!jc_config_valid(out)) {
+            set_err(err, err_size, T("Calibration values are invalid."));
+            return -1;
+        }
+        return 0;
+    }
+
     if (cap->zero_count < 8) {
         set_err(err, err_size, T("Not enough center samples."));
         return -1;
@@ -177,16 +196,34 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
 
 float jc_config_normalize_axis(int raw, int min, int zero, int max)
 {
+    return jc_config_normalize_axis_dz(raw, min, zero, max, 0);
+}
+
+/* Same mapping as Leaf's input proxy (Jawaka jw_calibration_axis): anything
+   within the deadzone of zero is 0, and travel starts from the deadzone edge. */
+float jc_config_normalize_axis_dz(int raw, int min, int zero, int max, int deadzone)
+{
     raw = jc_clamp_raw(raw);
-    if (raw < zero) {
-        int span = zero - min;
+    if (deadzone < 0)
+        deadzone = 0;
+    int delta = raw - zero;
+    if (delta <= deadzone && delta >= -deadzone)
+        return 0.0f;
+    if (delta < 0) {
+        int span = zero - min - deadzone;
         if (span <= 0)
             return 0.0f;
-        return clamp_norm(-((float)(zero - raw) / (float)span));
+        return clamp_norm((float)(delta + deadzone) / (float)span);
     }
 
-    int span = max - zero;
+    int span = max - zero - deadzone;
     if (span <= 0)
         return 0.0f;
-    return clamp_norm((float)(raw - zero) / (float)span);
+    return clamp_norm((float)(delta - deadzone) / (float)span);
+}
+
+int jc_config_runtime_deadzone(const jc_config *cfg)
+{
+    int floor = jc_platform_current()->driver_deadzone;
+    return cfg && cfg->center_noise > floor ? cfg->center_noise : floor;
 }
