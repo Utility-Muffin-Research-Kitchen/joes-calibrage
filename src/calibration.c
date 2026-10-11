@@ -133,6 +133,25 @@ int jc_capture_make_config(const jc_calibration_capture *cap, jc_config *out,
         set_err(err, err_size, T("Move the stick farther in every direction."));
         return -1;
     }
+
+    const jc_platform_info *platform = jc_platform_current();
+    if (JC_PLATFORM_DRIVER_CENTERED(platform)) {
+        /* Only the range is the unit's own. Center samples are ignored: a
+           resting stick reads a latched leftover, not where it rests. */
+        out->x_min = jc_clamp_raw(cap->x_min);
+        out->x_max = jc_clamp_raw(cap->x_max);
+        out->y_min = jc_clamp_raw(cap->y_min);
+        out->y_max = jc_clamp_raw(cap->y_max);
+        out->x_zero = platform->default_x_zero;
+        out->y_zero = platform->default_y_zero;
+        out->center_noise = platform->driver_deadzone;
+        if (!jc_config_valid(out)) {
+            set_err(err, err_size, T("Calibration values are invalid."));
+            return -1;
+        }
+        return 0;
+    }
+
     if (cap->zero_count < 8) {
         set_err(err, err_size, T("Not enough center samples."));
         return -1;

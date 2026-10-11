@@ -546,15 +546,27 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
         int y = (i % 2 == 0) ? -20000 : 22000;
         jc_capture_add_range(&cap, x, y);
     }
-    for (int i = 0; i < 12; i++)
-        jc_capture_add_center(&cap, (i % 3) - 1, (i % 2));
+    /* Range alone is enough: the driver centers the stick, so there is no
+       center step, the zero is the driver's, and the rest band is its deadzone. */
+    CHECK(JC_PLATFORM_DRIVER_CENTERED(jc_platform_current()));
     CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
     CHECK(cfg.x_min == -21000);
     CHECK(cfg.x_max == 23000);
     CHECK(cfg.y_min == -20000);
     CHECK(cfg.y_max == 22000);
-    CHECK(cfg.x_zero >= -1 && cfg.x_zero <= 1);
-    CHECK(cfg.y_zero >= 0 && cfg.y_zero <= 1);
+    CHECK(cfg.x_zero == 0);
+    CHECK(cfg.y_zero == 0);
+    CHECK(cfg.center_noise == 1800);
+
+    /* A resting stick reads a leftover the kernel's fuzz latched (526/1080 on
+       the 2026-10-10 unit), constant for as long as it rests. Even if center
+       samples arrive, they must not become the zero or the band. */
+    for (int i = 0; i < 30; i++)
+        jc_capture_add_center(&cap, 526, 1080);
+    CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
+    CHECK(cfg.x_zero == 0);
+    CHECK(cfg.y_zero == 0);
+    CHECK(cfg.center_noise == 1800);
 
     /* Reject a throw narrower than the minimum acceptable span (12000). */
     jc_capture_reset(&cap);
@@ -572,32 +584,33 @@ static void test_mlp1_signed_defaults_capture_and_normalize(void)
     CHECK(jc_config_normalize_axis(0, -22000, 0, 22000) == 0.0f);
 }
 
+/* Platforms that still capture a center (MLP1 does not; see above). */
 static void test_center_stability(void)
 {
     clear_path_envs();
-    setenv("CALIBRAGE_PLATFORM", "mlp1", 1);
+    setenv("CALIBRAGE_PLATFORM", "my355", 1);
     jc_calibration_capture cap;
     jc_capture_reset(&cap);
     for (int i = 0; i < 40; i++) {
-        int x = (i % 2 == 0) ? -21000 : 23000;
-        int y = (i % 2 == 0) ? -20000 : 22000;
+        int x = (i % 2 == 0) ? 20 : 210;
+        int y = (i % 2 == 0) ? 35 : 205;
         jc_capture_add_range(&cap, x, y);
     }
     /* Center step begins while the stick is still traveling back from the edge:
-       a few far-apart transition samples, then a tight rest near (-1000, 500). */
-    int transition[] = { 23000, 17000, 11000, 5000 };
+       a few far-apart transition samples, then a tight rest near (117, 130). */
+    int transition[] = { 210, 180, 150 };
     for (size_t i = 0; i < sizeof(transition) / sizeof(transition[0]); i++)
         jc_capture_add_center(&cap, transition[i], transition[i]);
     for (int i = 0; i < 30; i++)
-        jc_capture_add_center(&cap, -1000 + (i % 3) - 1, 500 + (i % 2));
+        jc_capture_add_center(&cap, 117 + (i % 3) - 1, 130 + (i % 2));
 
     jc_config cfg;
     char err[128] = {0};
     CHECK(jc_capture_make_config(&cap, &cfg, err, sizeof(err)) == 0);
     /* Center reflects the rest, not the transition; jitter is small. */
-    CHECK(cfg.x_zero >= -1001 && cfg.x_zero <= -999);
-    CHECK(cfg.y_zero >= 500 && cfg.y_zero <= 501);
-    CHECK(cfg.center_noise <= 30);
+    CHECK(cfg.x_zero >= 116 && cfg.x_zero <= 118);
+    CHECK(cfg.y_zero >= 130 && cfg.y_zero <= 131);
+    CHECK(cfg.center_noise <= 2);
 }
 
 static void test_mlp1_profile_save_and_backup(void)

@@ -109,6 +109,12 @@ static const jc_platform_info platform_mlp1 = {
     .calibration_flag_path = NULL,
     .raw_baud = 0,
     .raw_format = JC_RAW_FORMAT_MLP1,
+    /* loong1-joystick re-centers at every boot (median of its last nine
+       boot-time readings) and reports exactly 0 within 1800 of center (DT
+       button-adc-deadzone). The kernel's fuzz (1152) then averages that 0 into
+       a leftover that latches, so a resting stick's reading is not its rest
+       and a center capture only measures that leftover. */
+    .driver_deadzone = 1800,
 };
 
 static int env_is(const char *env, const char *value)

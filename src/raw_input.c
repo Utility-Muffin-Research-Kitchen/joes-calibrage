@@ -493,11 +493,11 @@ static int poll_stream(jc_raw_reader *reader, jc_raw_stream *stream, jc_raw_samp
 }
 
 /* MLP1 reads the evdev stick. evdev only emits EV_ABS events when the value
-   *changes*, so a stick at rest produces nothing — useless for sampling the
-   resting center. Instead we read the instantaneous absolute position with
-   EVIOCGABS, which returns the current value with no event required, so both the
-   range sweep and the resting center sample continuously. The event queue is
-   still drained each poll so the kernel buffer can't overflow. */
+   *changes*, so instead we read the absolute position with EVIOCGABS every poll,
+   no event required. It is the last *reported* value: at rest that is a
+   leftover the kernel's fuzz latched (see platform.c), which is why MLP1
+   captures only the range. The event queue is still drained each poll so the
+   kernel buffer can't overflow. */
 static int poll_evdev(jc_raw_reader *reader, jc_raw_sample *out)
 {
 #if defined(__linux__)

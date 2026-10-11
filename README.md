@@ -17,14 +17,17 @@ and the exact range varies from unit to unit. Anything that trusts the advertise
 range therefore sees a partial throw — for example, an analog game where the stick
 only ever reaches a walk instead of a full run.
 
-Joe's Calibrage captures each unit's real range so Leaf can remap it back to the
-full advertised range.
+Leaf ships a default range that every measured unit reaches, so the stick works
+without calibrating. Joe's Calibrage captures your unit's real range when you want
+the full throw tuned to it.
 
 ## How it works
 
 1. **Capture** — the app reads the raw stick from the kernel input device
-   (evdev `ABS_X` / `ABS_Y`) while you roll the stick around its edge, then
-   records the center while you let it rest.
+   (evdev `ABS_X` / `ABS_Y`) while you roll the stick around its edge. It does
+   not capture a center: the stick driver re-centers at every boot and reports
+   0 inside its own deadzone, so the profile keeps the driver's zero and uses
+   that deadzone (1800).
 2. **Profile** — it writes a calibration profile to the durable user-data tree:
 
    ```text
@@ -44,8 +47,7 @@ full advertised range.
 The MLP1 has a single analog stick, so the UI is single-stick.
 
 - **Test Stick** — live view of the stick position, to confirm what apps see.
-- **Calibrate** — roll the stick around the edge (range), then rest it (center),
-  then save.
+- **Calibrate** — roll the stick around the edge, then press **A** to save.
 - **View Values** — the current saved calibration and diagnostics.
 - **Restore Backup** — restore a previous calibration backup.
 

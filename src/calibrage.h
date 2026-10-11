@@ -55,7 +55,13 @@ typedef struct {
     const char *calibration_flag_path;
     int raw_baud;
     jc_raw_format raw_format;
+    int driver_deadzone;   /* >0: the driver centers the stick itself (see below) */
 } jc_platform_info;
+
+/* The stick driver re-centers at boot and reports 0 inside its own deadzone, so
+   there is no center to capture: the zero is the platform default and the rest
+   band is the driver's deadzone. */
+#define JC_PLATFORM_DRIVER_CENTERED(p) ((p)->driver_deadzone > 0)
 
 typedef struct {
     int x_min;

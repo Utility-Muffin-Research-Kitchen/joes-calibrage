@@ -588,6 +588,24 @@ static unsigned raw_button_mask(int button)
     return 0;
 }
 
+static void save_calibration(const jc_calibration_capture *cap, jc_stick stick,
+                             bool *done, char *final_message, size_t final_size,
+                             bool *final_error, bool *saved)
+{
+    char err[160] = {0};
+    jc_config cfg;
+    if (jc_capture_make_config(cap, &cfg, err, sizeof(err)) != 0 ||
+        jc_config_save_stick(stick, &cfg, err, sizeof(err)) != 0) {
+        snprintf(final_message, final_size, "%s", err);
+        *final_error = true;
+    } else {
+        snprintf(final_message, final_size, T("Calibration saved."));
+        *final_error = false;
+        *saved = true;
+    }
+    *done = true;
+}
+
 static void handle_calibration_button(int button, int *step,
                                       jc_calibration_capture *cap,
                                       jc_stick stick, bool *done,
@@ -599,7 +617,6 @@ static void handle_calibration_button(int button, int *step,
                                       bool *final_error,
                                       bool *saved)
 {
-    char err[160] = {0};
     if (status_message && status_size > 0)
         status_message[0] = '\0';
     if (button == CAT_BTN_B) {
@@ -609,28 +626,19 @@ static void handle_calibration_button(int button, int *step,
         jc_capture_reset(cap);
         *step = 0;
     } else if (*step == 0 && button == CAT_BTN_A) {
-        if (range_ready(cap)) {
-            *step = 1;
-        } else {
+        if (!range_ready(cap)) {
             snprintf(status_message, status_size,
                      T("Move the stick farther in every direction."));
+        } else if (JC_PLATFORM_DRIVER_CENTERED(jc_platform_current())) {
+            /* No center step: the driver centers the stick itself. */
+            save_calibration(cap, stick, done, final_message, final_size,
+                             final_error, saved);
+        } else {
+            *step = 1;
         }
     } else if (*step == 1 && button == CAT_BTN_Y) {
-        jc_config cfg;
-        if (jc_capture_make_config(cap, &cfg, err, sizeof(err)) != 0) {
-            snprintf(final_message, final_size, "%s", err);
-            *final_error = true;
-            *done = true;
-        } else if (jc_config_save_stick(stick, &cfg, err, sizeof(err)) != 0) {
-            snprintf(final_message, final_size, "%s", err);
-            *final_error = true;
-            *done = true;
-        } else {
-            snprintf(final_message, final_size, T("Calibration saved."));
-            *final_error = false;
-            *saved = true;
-            *done = true;
-        }
+        save_calibration(cap, stick, done, final_message, final_size,
+                         final_error, saved);
     }
 }
 
@@ -737,10 +745,12 @@ static void calibrate_stick(jc_stick stick)
         }
 
         draw_calibration_screen(stick, step, &cap, &sample, status_message);
+        bool range_saves = JC_PLATFORM_DRIVER_CENTERED(jc_platform_current());
         cat_footer_item footer_step0[] = {
             { .button = CAT_BTN_B, .label = T("Cancel") },
             { .button = CAT_BTN_X, .label = T("Reset") },
-            { .button = CAT_BTN_A, .label = T("Next"), .is_confirm = true },
+            { .button = CAT_BTN_A, .label = range_saves ? T("Save") : T("Next"),
+              .is_confirm = true },
         };
         cat_footer_item footer_step1[] = {
             { .button = CAT_BTN_B, .label = T("Cancel") },
